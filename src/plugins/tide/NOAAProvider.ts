@@ -18,6 +18,18 @@ export class NOAAProvider extends BaseDataProvider<TideData> {
     this.timezoneHelper = new TimezoneHelper();
   }
 
+  // Fix: Re-hydrate Date objects when loading from cache
+  protected rehydrateDates(data: TideData): TideData {
+    return {
+      ...data,
+      fetchedAt: new Date(data.fetchedAt),
+      predictions: data.predictions.map(pred => ({
+        ...pred,
+        time: new Date(pred.time) // Convert string back to Date object
+      }))
+    };
+  }
+
   async fetch(params: NOAAParams): Promise<TideData> {
     const { station, days = 7 } = params;
 

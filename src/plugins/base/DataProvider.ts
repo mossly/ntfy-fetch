@@ -42,13 +42,21 @@ export abstract class BaseDataProvider<T> implements IDataProvider<T> {
       }
 
       logger.debug('Using cached data');
-      return cachedData.data;
+
+      // Fix: Re-hydrate Date objects after JSON parsing
+      const rehydratedData = this.rehydrateDates(cachedData.data);
+      return rehydratedData;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         logger.error('Failed to read cached data:', error);
       }
       return null;
     }
+  }
+
+  // Override this method in subclasses to handle Date re-hydration
+  protected rehydrateDates(data: T): T {
+    return data; // Base implementation does nothing
   }
 
   async isStale(): Promise<boolean> {
