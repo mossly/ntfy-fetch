@@ -1,65 +1,14 @@
-version: '3.8'
-
 services:
   ntfy-fetch:
     build: .
     container_name: ntfy-fetch
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
       - TZ=Pacific/Rarotonga
-      - NTFY_URL=http://ntfy:8080
-      - NTFY_TOPIC=tide-alerts
-      - NTFY_USERNAME=
-      - NTFY_PASSWORD=
-      - LOG_LEVEL=info
-      - NOAA_STATION_ID=TPT2853
-      - NOAA_APPLICATION_NAME=ntfy-fetch
-      - CACHE_TTL_HOURS=24
-      - DATA_REFRESH_INTERVAL=6
     volumes:
       - ./data:/app/data
       - ./config:/app/config
       - ./plugins:/app/plugins
-    depends_on:
-      - ntfy
-    networks:
-      - ntfy-network
-
-  # Optional: Include ntfy server for self-hosting
-  ntfy:
-    image: binwiederhier/ntfy
-    container_name: ntfy
-    restart: unless-stopped
-    command:
-      - serve
-    environment:
-      - NTFY_BASE_URL=http://localhost:8080
-      - NTFY_UPSTREAM_BASE_URL=https://ntfy.sh
-      - NTFY_CACHE_FILE=/var/cache/ntfy/cache.db
-      - NTFY_AUTH_FILE=/var/lib/ntfy/auth.db
-      - NTFY_AUTH_DEFAULT_ACCESS=read-write
-      - NTFY_BEHIND_PROXY=false
-      - NTFY_ATTACHMENT_CACHE_DIR=/var/cache/ntfy/attachments
-      - NTFY_ENABLE_LOGIN=true
-    volumes:
-      - ntfy_cache:/var/cache/ntfy
-      - ntfy_data:/var/lib/ntfy
-    ports:
-      - "8080:80"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    networks:
-      - ntfy-network
-
-volumes:
-  ntfy_cache:
-  ntfy_data:
-
-networks:
-  ntfy-network:
-    driver: bridge

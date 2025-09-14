@@ -7,15 +7,15 @@ This guide covers deploying ntfy-fetch on TrueNAS Scale using Docker containers.
 ### Option 1: Docker Compose (Recommended)
 ```bash
 # Clone the repository
-git clone <your-github-repo-url>
+git clone https://github.com/your-username/ntfy-fetch.git
 cd ntfy-fetch
 
 # Copy and configure environment
 cp .env.example .env
-# Edit .env with your ntfy server details
+# Edit .env with your ntfy server details (URL, credentials, etc.)
 
-# Start services
-docker-compose up -d
+# Start the service
+docker compose up -d
 ```
 
 ### Option 2: TrueNAS Apps (Custom App)
