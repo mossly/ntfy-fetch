@@ -18,8 +18,11 @@ export class NotificationService {
       };
 
       if (notification.title) {
-        // Ensure the title contains only valid header characters
-        const cleanTitle = notification.title.replace(/[\x00-\x1F\x7F-\xFF]/g, '');
+        // Clean title of problematic characters (emojis, control chars, non-ASCII)
+        const cleanTitle = notification.title
+          .replace(/[\u{1F300}-\u{1F9FF}]/gu, '') // Remove emojis
+          .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+          .trim();
         headers['Title'] = cleanTitle || 'Notification';
       }
 
