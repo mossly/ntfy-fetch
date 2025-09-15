@@ -65,27 +65,93 @@ node dist/index.js status      # Show service status
 1. **Create plugin class** extending `BasePlugin`
 2. **Implement required methods**:
    - `getSchedules()`: Return cron schedule configurations
-   - `checkConditions()`: Return notifications to send
+   - `checkConditions(context?)`: Return notifications to send (context includes schedule description)
    - `onInitialize()` / `onCleanup()`: Setup and teardown
 3. **Register in PluginManager** in the `createPlugin()` method
 4. **Add configuration** to `config/plugins.json`
 
 ### Example Plugin Structure
 ```typescript
+import { NotificationScheduler, CronExpressionBuilder } from '../../utils/scheduling';
+
 export class CustomPlugin extends BasePlugin {
+  private scheduler: NotificationScheduler;
+
+  constructor(config: PluginConfig) {
+    super(config, metadata);
+    this.scheduler = new NotificationScheduler('custom', 24);
+  }
+
   getSchedules(): ScheduleConfig[] {
     return [{
-      expression: '*/10 * * * *', // Every 10 minutes
+      expression: CronExpressionBuilder.everyMinutes(10), // Every 10 minutes
       description: 'Check custom conditions',
       enabled: this.enabled
+    }, {
+      expression: CronExpressionBuilder.daily('09:00'), // Daily at 9 AM
+      description: 'Send daily report',
+      enabled: true
     }];
   }
 
-  async checkConditions(): Promise<NotificationData[]> {
-    // Your logic here
-    return [];
+  async checkConditions(context?: { description?: string }): Promise<NotificationData[]> {
+    // Check which schedule triggered this
+    if (context?.description?.includes('daily report')) {
+      return this.handleDailyReport();
+    }
+
+    // Regular condition checks
+    return this.handleRegularCheck();
   }
 }
+```
+
+## Scheduling Utilities
+
+The `src/utils/scheduling.ts` module provides reusable components for time-based notifications:
+
+### NotificationScheduler
+Manages notification tracking and prevents duplicate sends:
+```typescript
+const scheduler = new NotificationScheduler('plugin-name', 24);
+
+// Check if daily summary should be sent
+if (scheduler.shouldSendDailySummary({
+  enabled: true,
+  time: '07:00',
+  windowMinutes: 5
+})) {
+  // Send notification
+  scheduler.markDailySummaryAsSent();
+}
+
+// Check if event notification should be sent
+if (scheduler.shouldSendEventNotification(eventId, eventTime, 2)) {
+  // Notification will be automatically marked as sent
+}
+```
+
+### CronExpressionBuilder
+Helper for creating common cron patterns:
+```typescript
+CronExpressionBuilder.daily('07:00')        // Daily at 7 AM
+CronExpressionBuilder.everyMinutes(5)       // Every 5 minutes
+CronExpressionBuilder.everyHours(2)         // Every 2 hours
+CronExpressionBuilder.weekly('10:00', [1,5]) // Mondays and Fridays at 10 AM
+CronExpressionBuilder.monthly('09:00')      // First day of month at 9 AM
+```
+
+### ScheduleChecker
+Low-level time checking utilities:
+```typescript
+// Check if within time window
+ScheduleChecker.isWithinTimeWindow({ hour: 7, minute: 0 }, 5); // Within 5 minutes of 7:00
+
+// Calculate minutes until event
+ScheduleChecker.minutesUntil(targetDate);
+
+// Generate daily tracking keys
+ScheduleChecker.getDailyKey('summary'); // Returns 'summary-2025-01-14'
 ```
 
 ## NOAA API Integration

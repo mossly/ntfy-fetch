@@ -1,6 +1,7 @@
 import { BasePlugin } from '../base/Plugin';
 import { NOAAProvider } from './NOAAProvider';
 import { TimezoneHelper } from '../../utils/timezone';
+import { NotificationScheduler, ScheduleChecker, CronExpressionBuilder } from '../../utils/scheduling';
 import { NotificationData, ScheduleConfig, PluginConfig, PluginMetadata, TidePrediction } from '../../types';
 
 interface TidePluginConfig {
@@ -25,9 +26,8 @@ interface TidePluginConfig {
 export class TidePlugin extends BasePlugin {
   private noaaProvider: NOAAProvider;
   private timezoneHelper: TimezoneHelper;
-  private lastNotificationTimes: Map<string, Date>;
+  private scheduler: NotificationScheduler;
   private lastCheckTime: Date | null = null;
-  private lastScheduleDescription: string = '';
 
   constructor(config: PluginConfig) {
     const metadata: PluginMetadata = {
@@ -42,7 +42,7 @@ export class TidePlugin extends BasePlugin {
 
     this.noaaProvider = new NOAAProvider();
     this.timezoneHelper = new TimezoneHelper();
-    this.lastNotificationTimes = new Map();
+    this.scheduler = new NotificationScheduler('tide', 24);
   }
 
   getSchedules(): ScheduleConfig[] {
@@ -51,16 +51,15 @@ export class TidePlugin extends BasePlugin {
 
     // Check for tide notifications every 5 minutes
     schedules.push({
-      expression: '*/5 * * * *',
+      expression: CronExpressionBuilder.everyMinutes(5),
       description: 'Check for tide notifications',
       enabled: this.enabled
     });
 
     // Add daily summary schedule if enabled
     if (pluginConfig.notifications.dailySummary.enabled) {
-      const [hour, minute] = pluginConfig.notifications.dailySummary.time.split(':');
       schedules.push({
-        expression: `${minute} ${hour} * * *`,
+        expression: CronExpressionBuilder.daily(pluginConfig.notifications.dailySummary.time),
         description: 'Send daily tide summary',
         enabled: true
       });
@@ -78,8 +77,8 @@ export class TidePlugin extends BasePlugin {
     const pluginConfig = this.getPluginConfig<TidePluginConfig>();
     const now = new Date();
 
-    // Clean up old notification keys (older than 24 hours)
-    this.cleanupOldNotificationKeys(now);
+    // Clean up old notification records periodically
+    this.scheduler.cleanup();
 
     // Determine which schedule triggered this check
     const scheduleDescription = context?.description || 'manual';
@@ -139,19 +138,8 @@ export class TidePlugin extends BasePlugin {
   }
 
   protected async onCleanup(): Promise<void> {
-    this.lastNotificationTimes.clear();
+    this.scheduler.cleanup();
     this.log('info', 'Tide plugin cleanup completed');
-  }
-
-  private cleanupOldNotificationKeys(now: Date): void {
-    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-    for (const [key, time] of this.lastNotificationTimes.entries()) {
-      if (time < twentyFourHoursAgo) {
-        this.lastNotificationTimes.delete(key);
-        this.log('debug', `Cleaned up old notification key: ${key}`);
-      }
-    }
   }
 
   private async checkHighTideNotification(): Promise<NotificationData | null> {
@@ -166,22 +154,14 @@ export class TidePlugin extends BasePlugin {
       }
 
       const now = new Date();
-      const notificationKey = `high-tide-${nextHighTide.time.getTime()}`;
+      const eventId = `high-${nextHighTide.time.getTime()}`;
 
-      if (this.lastNotificationTimes.has(notificationKey)) {
-        this.log('debug', `Already sent notification for high tide at ${this.formatTideTime(nextHighTide)}`);
-        return null; // Already sent notification for this tide
-      }
-
-      const timeDiff = nextHighTide.time.getTime() - now.getTime();
-      const minutesUntil = Math.floor(timeDiff / 60000);
+      const minutesUntil = ScheduleChecker.minutesUntil(nextHighTide.time, now);
       this.log('debug', `Next high tide in ${minutesUntil} minutes: ${this.formatTideTime(nextHighTide)}`);
 
-      // Check if it's currently high tide time (within 2 minutes)
-      if (this.timezoneHelper.isTideTimeNow(now, nextHighTide.time)) {
+      // Check if it's time to send the notification
+      if (this.scheduler.shouldSendEventNotification(eventId, nextHighTide.time, 2)) {
         const localTimeStr = this.timezoneHelper.formatLocalTime(nextHighTide.time, 'h:mm a');
-
-        this.lastNotificationTimes.set(notificationKey, now);
 
         return {
           title: `High Tide Now! 🌊`,
@@ -210,22 +190,14 @@ export class TidePlugin extends BasePlugin {
       }
 
       const now = new Date();
-      const notificationKey = `low-tide-${nextLowTide.time.getTime()}`;
+      const eventId = `low-${nextLowTide.time.getTime()}`;
 
-      if (this.lastNotificationTimes.has(notificationKey)) {
-        this.log('debug', `Already sent notification for low tide at ${this.formatTideTime(nextLowTide)}`);
-        return null;
-      }
-
-      const timeDiff = nextLowTide.time.getTime() - now.getTime();
-      const minutesUntil = Math.floor(timeDiff / 60000);
+      const minutesUntil = ScheduleChecker.minutesUntil(nextLowTide.time, now);
       this.log('debug', `Next low tide in ${minutesUntil} minutes: ${this.formatTideTime(nextLowTide)}`);
 
-      // Check if it's currently low tide time (within 2 minutes)
-      if (this.timezoneHelper.isTideTimeNow(now, nextLowTide.time)) {
+      // Check if it's time to send the notification
+      if (this.scheduler.shouldSendEventNotification(eventId, nextLowTide.time, 2)) {
         const localTimeStr = this.timezoneHelper.formatLocalTime(nextLowTide.time, 'h:mm a');
-
-        this.lastNotificationTimes.set(notificationKey, now);
 
         return {
           title: `Low Tide Now! 🏖️`,
@@ -245,13 +217,14 @@ export class TidePlugin extends BasePlugin {
 
   private async checkDailySummary(): Promise<NotificationData | null> {
     const pluginConfig = this.getPluginConfig<TidePluginConfig>();
-    const now = new Date();
-    const today = now.toDateString();
-    const notificationKey = `daily-summary-${today}`;
 
-    if (this.lastNotificationTimes.has(notificationKey)) {
-      this.log('debug', 'Daily summary already sent today');
-      return null; // Already sent today's summary
+    // Check if it's time to send the daily summary
+    if (!this.scheduler.shouldSendDailySummary({
+      enabled: pluginConfig.notifications.dailySummary.enabled,
+      time: pluginConfig.notifications.dailySummary.time,
+      windowMinutes: 5
+    })) {
+      return null;
     }
 
     try {
@@ -289,7 +262,7 @@ export class TidePlugin extends BasePlugin {
         }
       }
 
-      this.lastNotificationTimes.set(notificationKey, now);
+      this.scheduler.markDailySummaryAsSent();
 
       return {
         title: '📊 Daily Tide Summary',
