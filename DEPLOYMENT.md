@@ -162,15 +162,53 @@ The container includes a health check. Check with:
 docker inspect ntfy-fetch | grep -A 10 "Health"
 ```
 
+## 🔄 Automatic Deployment
+
+### Option 1: Watchtower (Recommended)
+Automatically updates containers when new images are available.
+
+```bash
+# Deploy with Watchtower
+cd /mnt/pool/apps/ntfy-fetch
+docker-compose -f docker-compose.watchtower.yml up -d
+```
+
+Watchtower will:
+- Check for updates every 5 minutes
+- Automatically pull and redeploy changed images
+- Send notifications to ntfy about updates
+- Clean up old images
+
+### Option 2: Cron Job
+Add to TrueNAS **System Settings** → **Advanced** → **Cron Jobs**:
+
+```bash
+# Schedule: */30 * * * * (every 30 minutes)
+# Command:
+cd /mnt/pool/apps/ntfy-fetch && git pull && docker-compose build && docker-compose up -d
+```
+
+### Option 3: Manual Update with Script
+```bash
+# Make deployment script executable
+chmod +x /mnt/pool/apps/ntfy-fetch/deploy/truenas-deploy.sh
+
+# Run deployment
+./deploy/truenas-deploy.sh
+```
+
 ## 📝 Maintenance
 
-### Update Application
+### Update Application (Manual)
 ```bash
-# Pull latest image
-docker pull ghcr.io/your-username/ntfy-fetch:latest
+# Pull latest code
+cd /mnt/pool/apps/ntfy-fetch
+git pull origin master
 
-# Recreate container with new image
-docker-compose pull && docker-compose up -d
+# Rebuild and restart
+docker-compose build
+docker-compose down
+docker-compose up -d
 ```
 
 ### Backup Configuration
