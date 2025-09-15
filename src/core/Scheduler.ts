@@ -128,7 +128,7 @@ export class Scheduler {
         return;
       }
 
-      const notifications = await plugin.checkConditions();
+      const notifications = await plugin.checkConditions({ description: taskDescription });
 
       if (notifications.length > 0) {
         logger.info(`Plugin ${pluginName} generated ${notifications.length} notifications`);
@@ -158,7 +158,23 @@ export class Scheduler {
       : this.pluginManager.getEnabledPlugins();
 
     for (const plugin of plugins) {
-      await this.executePluginTask(plugin.name, 'manual execution');
+      try {
+        const notifications = await plugin.checkConditions({ description: 'manual execution' });
+
+        if (notifications.length > 0) {
+          logger.info(`Plugin ${plugin.name} generated ${notifications.length} notifications`);
+
+          const successCount = await this.notificationService.sendBulkNotifications(notifications);
+
+          if (successCount !== notifications.length) {
+            logger.warn(`Only sent ${successCount}/${notifications.length} notifications for plugin ${plugin.name}`);
+          }
+        } else {
+          logger.debug(`Plugin ${plugin.name} generated no notifications`);
+        }
+      } catch (error) {
+        logger.error(`Error executing manual check for plugin ${plugin.name}:`, error);
+      }
     }
   }
 

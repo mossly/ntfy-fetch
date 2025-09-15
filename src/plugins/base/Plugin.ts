@@ -35,7 +35,7 @@ export abstract class BasePlugin implements IPlugin {
   }
 
   abstract getSchedules(): ScheduleConfig[];
-  abstract checkConditions(): Promise<NotificationData[]>;
+  abstract checkConditions(context?: { description?: string }): Promise<NotificationData[]>;
 
   protected abstract onInitialize(): Promise<void>;
   protected abstract onCleanup(): Promise<void>;

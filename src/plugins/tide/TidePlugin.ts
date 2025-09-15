@@ -26,6 +26,8 @@ export class TidePlugin extends BasePlugin {
   private noaaProvider: NOAAProvider;
   private timezoneHelper: TimezoneHelper;
   private lastNotificationTimes: Map<string, Date>;
+  private lastCheckTime: Date | null = null;
+  private lastScheduleDescription: string = '';
 
   constructor(config: PluginConfig) {
     const metadata: PluginMetadata = {
@@ -45,6 +47,7 @@ export class TidePlugin extends BasePlugin {
 
   getSchedules(): ScheduleConfig[] {
     const schedules: ScheduleConfig[] = [];
+    const pluginConfig = this.getPluginConfig<TidePluginConfig>();
 
     // Check for tide notifications every 5 minutes
     schedules.push({
@@ -52,8 +55,6 @@ export class TidePlugin extends BasePlugin {
       description: 'Check for tide notifications',
       enabled: this.enabled
     });
-
-    const pluginConfig = this.getPluginConfig<TidePluginConfig>();
 
     // Add daily summary schedule if enabled
     if (pluginConfig.notifications.dailySummary.enabled) {
@@ -68,36 +69,48 @@ export class TidePlugin extends BasePlugin {
     return schedules;
   }
 
-  async checkConditions(): Promise<NotificationData[]> {
+  async checkConditions(context?: { description?: string }): Promise<NotificationData[]> {
     if (!this.enabled) {
       return [];
     }
 
     const notifications: NotificationData[] = [];
     const pluginConfig = this.getPluginConfig<TidePluginConfig>();
+    const now = new Date();
+
+    // Clean up old notification keys (older than 24 hours)
+    this.cleanupOldNotificationKeys(now);
+
+    // Determine which schedule triggered this check
+    const scheduleDescription = context?.description || 'manual';
+    this.log('debug', `Checking conditions for schedule: ${scheduleDescription}`);
 
     try {
-      // Check for high tide notifications
-      if (pluginConfig.notifications.highTide.enabled) {
-        const highTideNotification = await this.checkHighTideNotification();
-        if (highTideNotification) {
-          notifications.push(highTideNotification);
+      // Check based on which schedule triggered this
+      if (scheduleDescription.includes('daily tide summary')) {
+        // This is the 7 AM daily summary schedule
+        if (pluginConfig.notifications.dailySummary.enabled) {
+          const summaryNotification = await this.checkDailySummary();
+          if (summaryNotification) {
+            notifications.push(summaryNotification);
+          }
         }
-      }
-
-      // Check for low tide notifications
-      if (pluginConfig.notifications.lowTide.enabled) {
-        const lowTideNotification = await this.checkLowTideNotification();
-        if (lowTideNotification) {
-          notifications.push(lowTideNotification);
+      } else {
+        // This is the regular 5-minute tide check
+        // Check for high tide notifications
+        if (pluginConfig.notifications.highTide.enabled) {
+          const highTideNotification = await this.checkHighTideNotification();
+          if (highTideNotification) {
+            notifications.push(highTideNotification);
+          }
         }
-      }
 
-      // Check for daily summary
-      if (pluginConfig.notifications.dailySummary.enabled) {
-        const summaryNotification = await this.checkDailySummary();
-        if (summaryNotification) {
-          notifications.push(summaryNotification);
+        // Check for low tide notifications
+        if (pluginConfig.notifications.lowTide.enabled) {
+          const lowTideNotification = await this.checkLowTideNotification();
+          if (lowTideNotification) {
+            notifications.push(lowTideNotification);
+          }
         }
       }
 
@@ -130,6 +143,17 @@ export class TidePlugin extends BasePlugin {
     this.log('info', 'Tide plugin cleanup completed');
   }
 
+  private cleanupOldNotificationKeys(now: Date): void {
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    for (const [key, time] of this.lastNotificationTimes.entries()) {
+      if (time < twentyFourHoursAgo) {
+        this.lastNotificationTimes.delete(key);
+        this.log('debug', `Cleaned up old notification key: ${key}`);
+      }
+    }
+  }
+
   private async checkHighTideNotification(): Promise<NotificationData | null> {
     const pluginConfig = this.getPluginConfig<TidePluginConfig>();
     const { priority } = pluginConfig.notifications.highTide;
@@ -137,6 +161,7 @@ export class TidePlugin extends BasePlugin {
     try {
       const nextHighTide = await this.noaaProvider.getNextHighTide();
       if (!nextHighTide) {
+        this.log('debug', 'No upcoming high tide found');
         return null;
       }
 
@@ -144,8 +169,13 @@ export class TidePlugin extends BasePlugin {
       const notificationKey = `high-tide-${nextHighTide.time.getTime()}`;
 
       if (this.lastNotificationTimes.has(notificationKey)) {
+        this.log('debug', `Already sent notification for high tide at ${this.formatTideTime(nextHighTide)}`);
         return null; // Already sent notification for this tide
       }
+
+      const timeDiff = nextHighTide.time.getTime() - now.getTime();
+      const minutesUntil = Math.floor(timeDiff / 60000);
+      this.log('debug', `Next high tide in ${minutesUntil} minutes: ${this.formatTideTime(nextHighTide)}`);
 
       // Check if it's currently high tide time (within 2 minutes)
       if (this.timezoneHelper.isTideTimeNow(now, nextHighTide.time)) {
@@ -175,6 +205,7 @@ export class TidePlugin extends BasePlugin {
     try {
       const nextLowTide = await this.noaaProvider.getNextLowTide();
       if (!nextLowTide) {
+        this.log('debug', 'No upcoming low tide found');
         return null;
       }
 
@@ -182,8 +213,13 @@ export class TidePlugin extends BasePlugin {
       const notificationKey = `low-tide-${nextLowTide.time.getTime()}`;
 
       if (this.lastNotificationTimes.has(notificationKey)) {
+        this.log('debug', `Already sent notification for low tide at ${this.formatTideTime(nextLowTide)}`);
         return null;
       }
+
+      const timeDiff = nextLowTide.time.getTime() - now.getTime();
+      const minutesUntil = Math.floor(timeDiff / 60000);
+      this.log('debug', `Next low tide in ${minutesUntil} minutes: ${this.formatTideTime(nextLowTide)}`);
 
       // Check if it's currently low tide time (within 2 minutes)
       if (this.timezoneHelper.isTideTimeNow(now, nextLowTide.time)) {
@@ -214,6 +250,7 @@ export class TidePlugin extends BasePlugin {
     const notificationKey = `daily-summary-${today}`;
 
     if (this.lastNotificationTimes.has(notificationKey)) {
+      this.log('debug', 'Daily summary already sent today');
       return null; // Already sent today's summary
     }
 

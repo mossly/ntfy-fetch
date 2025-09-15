@@ -47,7 +47,7 @@ export interface IPlugin {
   version: string;
   initialize(): Promise<void>;
   getSchedules(): ScheduleConfig[];
-  checkConditions(): Promise<NotificationData[]>;
+  checkConditions(context?: { description?: string }): Promise<NotificationData[]>;
   cleanup(): Promise<void>;
 }
 
