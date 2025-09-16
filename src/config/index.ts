@@ -126,14 +126,14 @@ export class ConfigManager {
             highTide: {
               enabled: true,
               priority: 'default',
-              advanceNotice: [2, 10, 30], // Notify 2, 10, and 30 minutes before
-              exactTime: true // Also notify at exact tide time
+              advanceNotice: [], // No advance notifications
+              exactTime: true // Notify at exact tide time only
             },
             lowTide: {
               enabled: true,
               priority: 'low',
-              advanceNotice: [2, 10], // Notify 2 and 10 minutes before
-              exactTime: true
+              advanceNotice: [], // No advance notifications
+              exactTime: true // Notify at exact tide time only
             },
             dailySummary: {
               enabled: true,
