@@ -2,23 +2,47 @@ import { ConfigManager } from './config';
 import { PluginManager } from './core/PluginManager';
 import { NotificationService } from './core/NotificationService';
 import { Scheduler } from './core/Scheduler';
+import { EventQueue } from './core/EventQueue';
+import { EventScheduler } from './core/EventScheduler';
 import { logger } from './utils/logger';
+import { TidePluginV2 } from './plugins/tide/TidePluginV2';
 
 class NtfyFetchService {
   private configManager: ConfigManager;
   private pluginManager: PluginManager;
   private notificationService: NotificationService;
   private scheduler: Scheduler;
+  private eventQueue: EventQueue | null = null;
+  private eventScheduler: EventScheduler | null = null;
   private isRunning: boolean = false;
+  private useEventScheduler: boolean;
 
-  constructor() {
+  constructor(useEventScheduler: boolean = false) {
     this.configManager = ConfigManager.getInstance();
+    this.useEventScheduler = useEventScheduler;
 
     const config = this.configManager.getConfig();
 
     this.pluginManager = new PluginManager(config.plugins);
     this.notificationService = new NotificationService(config.ntfy);
     this.scheduler = new Scheduler(this.pluginManager, this.notificationService);
+
+    // Initialize event scheduling system if enabled
+    if (this.useEventScheduler) {
+      this.eventQueue = new EventQueue({
+        persistencePath: './data/scheduled-events.json',
+        cleanupIntervalHours: 24,
+        retentionHours: 48,
+        maxRetries: 3
+      });
+
+      this.eventScheduler = new EventScheduler(this.notificationService, {
+        eventQueue: this.eventQueue,
+        checkIntervalMs: 60000, // Check every minute
+        scheduleHorizonHours: 6, // Schedule 6 hours ahead in memory
+        gracefulShutdownTimeoutMs: 5000
+      });
+    }
   }
 
   async start(): Promise<void> {
@@ -28,7 +52,7 @@ class NtfyFetchService {
     }
 
     try {
-      logger.info('Starting ntfy-fetch service...');
+      logger.info(`Starting ntfy-fetch service${this.useEventScheduler ? ' with event scheduler' : ''}...`);
 
       // Test ntfy connection
       const connectionTest = await this.notificationService.testConnection();
@@ -38,6 +62,18 @@ class NtfyFetchService {
 
       // Initialize plugins
       await this.pluginManager.initializePlugins();
+
+      // If using event scheduler, connect it to TidePluginV2
+      if (this.useEventScheduler && this.eventScheduler) {
+        const tidePlugin = this.pluginManager.getPlugin('tide');
+        if (tidePlugin && tidePlugin instanceof TidePluginV2) {
+          await tidePlugin.setEventScheduler(this.eventScheduler);
+          logger.info('Connected event scheduler to TidePluginV2');
+        }
+
+        // Start the event scheduler
+        await this.eventScheduler.start();
+      }
 
       // Start scheduler
       await this.scheduler.start();
@@ -67,8 +103,18 @@ class NtfyFetchService {
       // Stop scheduler
       await this.scheduler.stop();
 
+      // Stop event scheduler if enabled
+      if (this.eventScheduler) {
+        await this.eventScheduler.stop();
+      }
+
       // Cleanup plugins
       await this.pluginManager.cleanupPlugins();
+
+      // Shutdown event queue if enabled
+      if (this.eventQueue) {
+        await this.eventQueue.shutdown();
+      }
 
       this.isRunning = false;
       logger.info('Service stopped successfully');
@@ -93,7 +139,7 @@ class NtfyFetchService {
     await this.scheduler.executeOnceNow(pluginName);
   }
 
-  getStatus(): {
+  async getStatus(): Promise<{
     running: boolean;
     plugins: Array<{ name: string; enabled: boolean; initialized: boolean; version: string }>;
     scheduledTasks: Array<{
@@ -103,12 +149,38 @@ class NtfyFetchService {
       pluginName: string;
       nextRun: Date | null;
     }>;
-  } {
-    return {
+    eventScheduler?: {
+      enabled: boolean;
+      scheduledInMemory?: number;
+      queueStats?: {
+        pending: number;
+        scheduled: number;
+        sent: number;
+        failed: number;
+        total: number;
+      };
+    };
+  }> {
+    const status: any = {
       running: this.isRunning,
       plugins: this.pluginManager.getPluginStatus(),
       scheduledTasks: this.scheduler.getScheduledTasks()
     };
+
+    if (this.useEventScheduler && this.eventScheduler) {
+      const eventStats = await this.eventScheduler.getStats();
+      status.eventScheduler = {
+        enabled: true,
+        scheduledInMemory: eventStats.scheduledInMemory,
+        queueStats: eventStats.queueStats
+      };
+    } else {
+      status.eventScheduler = {
+        enabled: false
+      };
+    }
+
+    return status;
   }
 
   private async sendStartupNotification(): Promise<void> {
@@ -117,9 +189,15 @@ class NtfyFetchService {
       const enabledPluginsCount = config.plugins.filter(p => p.enabled).length;
       const scheduledTasksCount = this.scheduler.getScheduledTasks().length;
 
+      let message = `Service started with ${enabledPluginsCount} plugins and ${scheduledTasksCount} scheduled tasks`;
+
+      if (this.useEventScheduler) {
+        message += '\n✨ Event scheduler enabled for precise notifications';
+      }
+
       await this.notificationService.sendNotification({
         title: 'ntfy-fetch Started',
-        message: `Service started with ${enabledPluginsCount} plugins and ${scheduledTasksCount} scheduled tasks`,
+        message,
         priority: 'low',
         tags: ['startup', 'service']
       });
@@ -148,7 +226,10 @@ class NtfyFetchService {
 
 // CLI handler for direct execution
 async function main() {
-  const service = new NtfyFetchService();
+  // Check if event scheduler should be enabled
+  const useEventScheduler = process.env.USE_EVENT_SCHEDULER === 'true' || process.argv.includes('--event-scheduler');
+
+  const service = new NtfyFetchService(useEventScheduler);
 
   // Setup graceful shutdown
   const shutdownHandler = async (signal: string) => {
@@ -197,7 +278,7 @@ async function main() {
 
     case 'status':
       try {
-        const status = service.getStatus();
+        const status = await service.getStatus();
         console.log(JSON.stringify(status, null, 2));
         process.exit(0);
       } catch (error) {
@@ -211,16 +292,18 @@ async function main() {
 ntfy-fetch - Extensible notification service
 
 Usage:
-  npm start              Start the service (default)
-  npm run dev            Start in development mode with file watching
-  npm test              Run immediate test execution
+  npm start                    Start the service (default)
+  npm run dev                  Start in development mode with file watching
+  npm test                     Run immediate test execution
 
 Commands:
-  node dist/index.js start    Start the service
-  node dist/index.js test     Run immediate test and exit
-  node dist/index.js status   Show service status
+  node dist/index.js start                  Start the service
+  node dist/index.js start --event-scheduler Start with event scheduler (precise timing)
+  node dist/index.js test                   Run immediate test and exit
+  node dist/index.js status                 Show service status
 
 Environment variables:
+  USE_EVENT_SCHEDULER=true     Enable event scheduler for precise notifications
   See .env.example for required configuration
       `);
 

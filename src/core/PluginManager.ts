@@ -1,5 +1,6 @@
 import { IPlugin, PluginConfig } from '../types';
 import { TidePlugin } from '../plugins/tide/TidePlugin';
+import { TidePluginV2 } from '../plugins/tide/TidePluginV2';
 import { logger } from '../utils/logger';
 
 export class PluginManager {
@@ -98,7 +99,20 @@ export class PluginManager {
   private async createPlugin(config: PluginConfig): Promise<IPlugin> {
     switch (config.name) {
       case 'tide':
-        return new TidePlugin(config);
+        // Check if event scheduler is enabled via environment variable or config
+        const useEventScheduler = process.env.USE_EVENT_SCHEDULER === 'true' ||
+                                  config.config?.useEventScheduler === true;
+
+        if (useEventScheduler) {
+          logger.info('Creating TidePluginV2 with event scheduler support');
+          return new TidePluginV2(config);
+        } else {
+          return new TidePlugin(config);
+        }
+
+      case 'tide-v2':
+        // Explicit V2 plugin creation
+        return new TidePluginV2(config);
 
       default:
         throw new Error(`Unknown plugin type: ${config.name}`);

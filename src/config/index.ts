@@ -125,15 +125,24 @@ export class ConfigManager {
           notifications: {
             highTide: {
               enabled: true,
-              priority: 'default'
+              priority: 'default',
+              advanceNotice: [2, 10, 30], // Notify 2, 10, and 30 minutes before
+              exactTime: true // Also notify at exact tide time
             },
             lowTide: {
-              enabled: true
+              enabled: true,
+              priority: 'low',
+              advanceNotice: [2, 10], // Notify 2 and 10 minutes before
+              exactTime: true
             },
             dailySummary: {
               enabled: true,
               time: '07:00'
             }
+          },
+          scheduling: {
+            refreshIntervalHours: 6, // Refresh tide data every 6 hours
+            scheduleAheadHours: 24 // Schedule events 24 hours ahead
           }
         }
       }

@@ -196,4 +196,25 @@ export class NOAAProvider extends BaseDataProvider<TideData> {
       return [];
     }
   }
+
+  async getTidesForPeriod(startDate: Date, endDate: Date): Promise<TidePrediction[]> {
+    try {
+      // Calculate days needed to cover the period
+      const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      const daysToFetch = Math.max(1, Math.min(daysDiff + 1, 30)); // Cap at 30 days
+
+      const data = await this.fetchWithCache({
+        station: process.env.NOAA_STATION_ID || 'TPT2853',
+        days: daysToFetch
+      });
+
+      // Filter predictions to the requested period
+      return data.predictions.filter(pred =>
+        pred.time >= startDate && pred.time <= endDate
+      );
+    } catch (error) {
+      logger.error('Failed to get tides for period:', error);
+      return [];
+    }
+  }
 }

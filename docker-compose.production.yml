@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  ntfy-fetch:
+    image: ghcr.io/mossly/ntfy-fetch:latest
+    container_name: ntfy-fetch
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - TZ=Pacific/Rarotonga
+      - USE_EVENT_SCHEDULER=true  # Enable precise notification timing
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config.json:/config.json:ro  # GitHub registry auth
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=300  # Check every 5 minutes
+      - WATCHTOWER_LABEL_ENABLE=true  # Only update labeled containers
+      - WATCHTOWER_NOTIFICATIONS=shoutrrr
+      - WATCHTOWER_NOTIFICATION_URL=generic+http://ntfy.mossly.org/watchtower?title=Container%20Update&priority=low
+      - DOCKER_CONFIG=/config.json
+    command: --interval 300 --cleanup --label-enable
