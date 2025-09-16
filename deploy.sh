@@ -39,15 +39,15 @@ fi
 
 # Stop existing containers
 echo "📦 Stopping existing containers..."
-docker-compose -f docker-compose.production.yml down 2>/dev/null || true
+docker compose -f docker-compose.production.yml down 2>/dev/null || true
 
 # Pull latest images
 echo "📥 Pulling latest images..."
-docker-compose -f docker-compose.production.yml pull
+docker compose -f docker-compose.production.yml pull
 
 # Start services
 echo "🔧 Starting services..."
-docker-compose -f docker-compose.production.yml up -d
+docker compose -f docker-compose.production.yml up -d
 
 # Wait for services to start
 echo "⏳ Waiting for services to start..."
@@ -74,8 +74,8 @@ if docker ps | grep -q ntfy-fetch; then
     echo "  View logs:        docker logs -f ntfy-fetch"
     echo "  Check status:     docker exec ntfy-fetch node dist/index.js status"
     echo "  View events:      docker exec ntfy-fetch cat /app/data/scheduled-events.json | jq"
-    echo "  Restart:          docker-compose -f docker-compose.production.yml restart"
-    echo "  Stop:             docker-compose -f docker-compose.production.yml down"
+    echo "  Restart:          docker compose -f docker-compose.production.yml restart"
+    echo "  Stop:             docker compose -f docker-compose.production.yml down"
 else
     echo "❌ Failed to start ntfy-fetch"
     docker logs ntfy-fetch
