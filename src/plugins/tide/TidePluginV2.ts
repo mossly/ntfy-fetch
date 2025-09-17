@@ -180,7 +180,6 @@ export class TidePluginV2 extends BasePlugin {
     const events: Omit<ScheduledEvent, 'createdAt' | 'updatedAt' | 'retryCount'>[] = [];
     const pluginConfig = this.getPluginConfig<TidePluginConfigV2>();
 
-    const icon = tideType === 'high' ? '🌊' : '🏖️';
     const title = tideType === 'high' ? 'High Tide' : 'Low Tide';
     const priority = config.priority || (tideType === 'high' ? 'default' : 'low');
 
@@ -206,7 +205,7 @@ export class TidePluginV2 extends BasePlugin {
         status: 'pending',
         maxRetries: 3,
         payload: {
-          title: `${icon} ${title} in ${minutesText}`,
+          title: `${title} in ${minutesText}`,
           message: `${title} at ${pluginConfig.location}\nTime: ${localTimeStr}\nHeight: ${tide.height.toFixed(1)}m`,
           priority,
           tags: ['tide', `${tideType}-tide`, 'advance-notice']
@@ -235,7 +234,7 @@ export class TidePluginV2 extends BasePlugin {
           status: 'pending',
           maxRetries: 3,
           payload: {
-            title: `${icon} ${title} Now!`,
+            title: `${title} Now!`,
             message: `${title} at ${pluginConfig.location}\nTime: ${localTimeStr}\nHeight: ${tide.height.toFixed(1)}m`,
             priority,
             tags: ['tide', `${tideType}-tide`, 'exact-time']
@@ -285,18 +284,17 @@ export class TidePluginV2 extends BasePlugin {
       const highTides = todaysTides.filter(t => t.type === 'H');
       const lowTides = todaysTides.filter(t => t.type === 'L');
 
-      let message = `🌊 Daily Tide Summary for ${pluginConfig.location}\n\n`;
+      let message = `Daily Tide Summary for ${pluginConfig.location}\n\n`;
 
       const allTides = todaysTides.sort((a, b) => a.time.getTime() - b.time.getTime());
 
       if (allTides.length > 0) {
-        message += `📅 ${this.timezoneHelper.formatLocalTime(allTides[0].time, 'EEEE, MMM dd')}\n\n`;
+        message += `${this.timezoneHelper.formatLocalTime(allTides[0].time, 'EEEE, MMM dd')}\n\n`;
 
         allTides.forEach(tide => {
           const time = this.timezoneHelper.formatLocalTime(tide.time, 'h:mm a');
-          const icon = tide.type === 'H' ? '🌊' : '🏖️';
           const type = tide.type === 'H' ? 'High' : 'Low';
-          message += `${icon} ${time} - ${type} Tide (${tide.height.toFixed(1)}m)\n`;
+          message += `${time} - ${type} Tide (${tide.height.toFixed(1)}m)\n`;
         });
 
         const nextTide = allTides.find(tide => tide.time > new Date());
@@ -305,12 +303,12 @@ export class TidePluginV2 extends BasePlugin {
           const duration = this.timezoneHelper.formatDuration(timeUntil.hours, timeUntil.minutes);
           const nextTime = this.timezoneHelper.formatLocalTime(nextTide.time, 'h:mm a');
           const nextType = nextTide.type === 'H' ? 'High' : 'Low';
-          message += `\n⏰ Next: ${nextType} tide at ${nextTime} (in ${duration})`;
+          message += `\nNext: ${nextType} tide at ${nextTime} (in ${duration})`;
         }
       }
 
       return {
-        title: '📊 Daily Tide Summary',
+        title: 'Daily Tide Summary',
         message: message.trim(),
         priority: 'low',
         tags: ['tide', 'summary', 'daily']
