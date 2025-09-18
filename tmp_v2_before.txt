@@ -206,8 +206,9 @@ export class TidePluginV2 extends BasePlugin {
         maxRetries: 3,
         payload: {
           title: `${title} in ${minutesText}`,
-          message: '',
-          priority
+          message: `${title} at ${pluginConfig.location}\nTime: ${localTimeStr}\nHeight: ${tide.height.toFixed(1)}m`,
+          priority,
+          tags: ['tide', `${tideType}-tide`, 'advance-notice']
         },
         metadata: {
           originalEventTime: tide.time,
@@ -232,11 +233,12 @@ export class TidePluginV2 extends BasePlugin {
           scheduledFor: tide.time,
           status: 'pending',
           maxRetries: 3,
-        payload: {
-          title: `${title}`,
-          message: '',
-          priority
-        },
+          payload: {
+            title: `${title} Now!`,
+            message: `${title} at ${pluginConfig.location}\nTime: ${localTimeStr}\nHeight: ${tide.height.toFixed(1)}m`,
+            priority,
+            tags: ['tide', `${tideType}-tide`, 'exact-time']
+          },
           metadata: {
             originalEventTime: tide.time,
             advanceMinutes: 0,
@@ -282,22 +284,34 @@ export class TidePluginV2 extends BasePlugin {
       const highTides = todaysTides.filter(t => t.type === 'H');
       const lowTides = todaysTides.filter(t => t.type === 'L');
 
+      let message = `Daily Tide Summary for ${pluginConfig.location}\n\n`;
+
       const allTides = todaysTides.sort((a, b) => a.time.getTime() - b.time.getTime());
-      const futureTides = allTides.filter(tide => tide.time > new Date());
-      if (futureTides.length === 0) {
-        return null;
+
+      if (allTides.length > 0) {
+        message += `${this.timezoneHelper.formatLocalTime(allTides[0].time, 'EEEE, MMM dd')}\n\n`;
+
+        allTides.forEach(tide => {
+          const time = this.timezoneHelper.formatLocalTime(tide.time, 'h:mm a');
+          const type = tide.type === 'H' ? 'High' : 'Low';
+          message += `${time} - ${type} Tide (${tide.height.toFixed(1)}m)\n`;
+        });
+
+        const nextTide = allTides.find(tide => tide.time > new Date());
+        if (nextTide) {
+          const timeUntil = this.timezoneHelper.getTimeUntilTide(nextTide.time);
+          const duration = this.timezoneHelper.formatDuration(timeUntil.hours, timeUntil.minutes);
+          const nextTime = this.timezoneHelper.formatLocalTime(nextTide.time, 'h:mm a');
+          const nextType = nextTide.type === 'H' ? 'High' : 'Low';
+          message += `\nNext: ${nextType} tide at ${nextTime} (in ${duration})`;
+        }
       }
 
-      let message = futureTides.map(tide => {
-        const time = this.timezoneHelper.formatLocalTime(tide.time, 'h:mm a');
-        const type = tide.type === 'H' ? 'High' : 'Low';
-        return `${time} - ${type} Tide`;
-      }).join('\n');
-
       return {
-        title: "Daily Tides",
+        title: 'Daily Tide Summary',
         message: message.trim(),
-        priority: 'low'
+        priority: 'low',
+        tags: ['tide', 'summary', 'daily']
       };
 
     } catch (error) {
@@ -341,4 +355,3 @@ export class TidePluginV2 extends BasePlugin {
     this.log('info', 'Tide plugin V2 cleanup completed');
   }
 }
-

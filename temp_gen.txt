@@ -1,0 +1,8 @@
+  private async generateDailySummary(): Promise<NotificationData | null> {
+    const pluginConfig = this.getPluginConfig<TidePluginConfigV2>();
+
+    try {
+      const todaysTides = await this.noaaProvider.getTodaysTides();
+      if (todaysTides.length === 0) {
+        return null;
+      }

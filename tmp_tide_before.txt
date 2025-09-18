@@ -161,10 +161,13 @@ export class TidePlugin extends BasePlugin {
 
       // Check if it's time to send the notification
       if (this.scheduler.shouldSendEventNotification(eventId, nextHighTide.time, 2)) {
+        const localTimeStr = this.timezoneHelper.formatLocalTime(nextHighTide.time, 'h:mm a');
+
         return {
           title: 'High Tide',
           message: '',
-          priority: priority || 'default'
+          priority: priority || 'default',
+          tags: ['tide', 'high-tide']
         };
       }
 
@@ -194,10 +197,13 @@ export class TidePlugin extends BasePlugin {
 
       // Check if it's time to send the notification
       if (this.scheduler.shouldSendEventNotification(eventId, nextLowTide.time, 2)) {
+        const localTimeStr = this.timezoneHelper.formatLocalTime(nextLowTide.time, 'h:mm a');
+        return {
         return {
           title: 'Low Tide',
           message: '',
-          priority: 'low'
+          priority: 'low',
+          tags: ['tide', 'low-tide']
         };
       }
 
@@ -240,15 +246,16 @@ export class TidePlugin extends BasePlugin {
       const message = futureTides.map(tide => {
         const time = this.timezoneHelper.formatLocalTime(tide.time, 'h:mm a');
         const type = tide.type === 'H' ? 'High' : 'Low';
-        return `${time} - ${type} Tide`;
-      }).join('\n');
+        return ${time} -  Tide;
+      }).join('\\n');
 
       this.scheduler.markDailySummaryAsSent();
 
       return {
-        title: "Daily Tides",
+        title: 'Today\'s Tides',
         message,
-        priority: 'low'
+        priority: 'low',
+        tags: ['tide', 'summary', 'daily']
       };
 
     } catch (error) {

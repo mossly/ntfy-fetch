@@ -1,3 +1,4 @@
+}
 import { BasePlugin } from '../base/Plugin';
 import { NOAAProvider } from './NOAAProvider';
 import { TimezoneHelper } from '../../utils/timezone';
@@ -206,8 +207,9 @@ export class TidePluginV2 extends BasePlugin {
         maxRetries: 3,
         payload: {
           title: `${title} in ${minutesText}`,
-          message: '',
-          priority
+          message: `${title} at ${pluginConfig.location}\nTime: ${localTimeStr}\nHeight: ${tide.height.toFixed(1)}m`,
+          priority,
+          tags: ['tide', `${tideType}-tide`, 'advance-notice']
         },
         metadata: {
           originalEventTime: tide.time,
@@ -217,128 +219,4 @@ export class TidePluginV2 extends BasePlugin {
         }
       });
     }
-
-    // Create exact time event
-    if (config.exactTime) {
-      // Skip if tide time has already passed
-      if (tide.time >= new Date()) {
-        const eventId = `${this.name}-${tideType}-${tide.time.getTime()}-exact`;
-        const localTimeStr = this.timezoneHelper.formatLocalTime(tide.time, 'h:mm a');
-
-        events.push({
-          id: eventId,
-          pluginName: this.name,
-          eventType: `${tideType}-tide-exact`,
-          scheduledFor: tide.time,
-          status: 'pending',
-          maxRetries: 3,
-        payload: {
-          title: `${title}`,
-          message: '',
-          priority
-        },
-          metadata: {
-            originalEventTime: tide.time,
-            advanceMinutes: 0,
-            tideType,
-            tideHeight: tide.height
-          }
-        });
-      }
-    }
-
-    return events;
-  }
-
-  private async cancelPreviouslyScheduledEvents(): Promise<void> {
-    if (!this.eventScheduler) {
-      return;
-    }
-
-    let cancelCount = 0;
-    for (const eventId of this.scheduledEventIds) {
-      const cancelled = await this.eventScheduler.cancelEvent(eventId);
-      if (cancelled) {
-        cancelCount++;
-      }
-    }
-
-    if (cancelCount > 0) {
-      this.log('info', `Cancelled ${cancelCount} previously scheduled events`);
-    }
-
-    this.scheduledEventIds.clear();
-  }
-
-  private async generateDailySummary(): Promise<NotificationData | null> {
-    const pluginConfig = this.getPluginConfig<TidePluginConfigV2>();
-
-    try {
-      const todaysTides = await this.noaaProvider.getTodaysTides();
-      if (todaysTides.length === 0) {
-        return null;
-      }
-
-      const highTides = todaysTides.filter(t => t.type === 'H');
-      const lowTides = todaysTides.filter(t => t.type === 'L');
-
-      const allTides = todaysTides.sort((a, b) => a.time.getTime() - b.time.getTime());
-      const futureTides = allTides.filter(tide => tide.time > new Date());
-      if (futureTides.length === 0) {
-        return null;
-      }
-
-      let message = futureTides.map(tide => {
-        const time = this.timezoneHelper.formatLocalTime(tide.time, 'h:mm a');
-        const type = tide.type === 'H' ? 'High' : 'Low';
-        return `${time} - ${type} Tide`;
-      }).join('\n');
-
-      return {
-        title: "Daily Tides",
-        message: message.trim(),
-        priority: 'low'
-      };
-
-    } catch (error) {
-      this.log('error', 'Failed to generate daily tide summary', error);
-      return null;
-    }
-  }
-
-  protected async onInitialize(): Promise<void> {
-    const pluginConfig = this.getPluginConfig<TidePluginConfigV2>();
-    this.log('info', `Initialized Tide Plugin V2 with station ${pluginConfig.station} for ${pluginConfig.location}`);
-
-    // Test NOAA API connectivity
-    try {
-      const nextHighTide = await this.noaaProvider.getNextHighTide();
-      if (nextHighTide) {
-        const localTime = this.timezoneHelper.formatLocalTime(nextHighTide.time, 'MMM dd, h:mm a');
-        this.log('info', `Next high tide: ${localTime} (${nextHighTide.height.toFixed(1)}m)`);
-      } else {
-        this.log('warn', 'No upcoming high tide data available');
-      }
-    } catch (error) {
-      this.log('error', 'Failed to connect to NOAA API during initialization', error);
-    }
-
-    // Schedule initial tide events if event scheduler is available
-    // This will be called again after event scheduler is connected
-    if (this.eventScheduler) {
-      await this.scheduleTideEvents();
-    }
-  }
-
-  async onEventSchedulerConnected(): Promise<void> {
-    // Schedule initial tide events when event scheduler becomes available
-    this.log('info', 'Event scheduler connected, scheduling initial tide events');
-    await this.scheduleTideEvents();
-  }
-
-  protected async onCleanup(): Promise<void> {
-    await this.cancelPreviouslyScheduledEvents();
-    this.log('info', 'Tide plugin V2 cleanup completed');
-  }
-}
 
