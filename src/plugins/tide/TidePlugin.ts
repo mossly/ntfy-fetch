@@ -163,7 +163,7 @@ export class TidePlugin extends BasePlugin {
       if (this.scheduler.shouldSendEventNotification(eventId, nextHighTide.time, 2)) {
         return {
           title: 'High Tide',
-          message: '',
+          message: ' ',
           priority: priority || 'default'
         };
       }
@@ -196,7 +196,7 @@ export class TidePlugin extends BasePlugin {
       if (this.scheduler.shouldSendEventNotification(eventId, nextLowTide.time, 2)) {
         return {
           title: 'Low Tide',
-          message: '',
+          message: ' ',
           priority: 'low'
         };
       }
