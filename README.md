@@ -1,14 +1,15 @@
 # ntfy-fetch
 
-An extensible notification service for pushing alerts to your self-hosted ntfy instance. Built with a plugin architecture, currently featuring tide notifications for Arorangi, Rarotonga using NOAA data.
+An extensible notification service for pushing alerts to your self-hosted ntfy instance. Built with a plugin architecture, currently featuring tide notifications for Avarua, Rarotonga using NOAA data.
 
 ## 🌊 Features
 
 - **Extensible Plugin System**: Easy to add new notification types
-- **Tide Notifications**: Get alerts 30 minutes before high tide in Arorangi
+- **Tide Notifications**: High/low tide alerts and daily summaries
 - **NOAA Integration**: Official tide data from station TPT2853 (Avarua Harbor)
 - **Timezone Aware**: Properly handles Cook Islands Time (UTC-10)
-- **Self-Hosted**: Runs alongside your ntfy server on your NAS
+- **Smart Scheduling**: Advanced notification scheduling with duplicate prevention
+- **Self-Hosted**: Runs alongside your ntfy server on your infrastructure
 - **Docker Ready**: Complete containerization with docker-compose
 
 ## 🚀 Quick Start
@@ -46,10 +47,11 @@ npm run dev
 ## 📋 Configuration
 
 ### Default Tide Plugin Settings
-- **High Tide Alerts**: 30 minutes before high tide
-- **Daily Summary**: 7:00 AM local time
-- **Location**: Arorangi, Rarotonga
+- **High/Low Tide Alerts**: Event notifications at exact tide times
+- **Daily Summary**: 7:00 AM local time with upcoming tides
+- **Location**: Avarua, Rarotonga
 - **Data Source**: NOAA Station TPT2853
+- **Duplicate Prevention**: Smart scheduling prevents repeated notifications
 
 ### Custom Plugin Configuration
 Create `config/plugins.json`:
@@ -63,9 +65,8 @@ Create `config/plugins.json`:
       "station": "TPT2853",
       "location": "Arorangi, Rarotonga",
       "notifications": {
-        "highTide": {
+        "tideEvents": {
           "enabled": true,
-          "advanceMinutes": 30,
           "priority": "default"
         },
         "dailySummary": {
@@ -87,7 +88,7 @@ npm run build           # Compile TypeScript
 npm start               # Start production build
 npm run type-check      # Type checking only
 
-# Testing
+# Testing and Operations
 node dist/index.js test # Run immediate test
 node dist/index.js status # Show service status
 
@@ -105,14 +106,14 @@ import { BasePlugin } from './plugins/base/Plugin';
 export class WeatherPlugin extends BasePlugin {
   getSchedules() {
     return [{
-      expression: '0 * * * *', // Every hour
+      expression: CronExpressionBuilder.everyHours(1), // Every hour
       description: 'Check weather conditions',
       enabled: this.enabled
     }];
   }
 
-  async checkConditions() {
-    // Your notification logic
+  async checkConditions(context?: { description?: string }) {
+    // Your notification logic using scheduling utilities
     return [{
       title: 'Weather Alert',
       message: 'Storm approaching!',
