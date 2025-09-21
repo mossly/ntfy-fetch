@@ -30,7 +30,7 @@ export class AdaPricePlugin extends BasePlugin {
 
   constructor(pluginConfig: PluginConfig) {
     const metadata: PluginMetadata = {
-      name: 'ADA Price Monitor',
+      name: 'ada-price',
       version: '1.0.0',
       description: 'Monitors Cardano (ADA) price with daily notifications and flash crash/boom detection',
       author: 'ntfy-fetch',
