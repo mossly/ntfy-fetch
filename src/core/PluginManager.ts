@@ -3,6 +3,7 @@ import { TidePlugin } from '../plugins/tide/TidePlugin';
 import { TidePluginV2 } from '../plugins/tide/TidePluginV2';
 import { AdaPricePlugin } from '../plugins/coingecko/AdaPricePlugin';
 import { logger } from '../utils/logger';
+import { eventBus } from './EventBus';
 
 export class PluginManager {
   private plugins: Map<string, IPlugin>;
@@ -28,6 +29,7 @@ export class PluginManager {
 
         this.plugins.set(config.name, plugin);
         logger.info(`Plugin ${config.name} initialized successfully`);
+        eventBus.emit('event', { type: 'plugin:initialized', name: config.name, version: plugin.version });
       } catch (error) {
         logger.error(`Failed to initialize plugin ${config.name}:`, error);
         // Continue with other plugins
@@ -44,6 +46,7 @@ export class PluginManager {
       try {
         await plugin.cleanup();
         logger.info(`Plugin ${name} cleaned up successfully`);
+        eventBus.emit('event', { type: 'plugin:cleanup', name });
       } catch (error) {
         logger.error(`Failed to cleanup plugin ${name}:`, error);
       }

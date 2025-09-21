@@ -3,6 +3,7 @@ import { PluginManager } from './PluginManager';
 import { NotificationService } from './NotificationService';
 import { ScheduleConfig } from '../types';
 import { logger } from '../utils/logger';
+import { eventBus } from './EventBus';
 
 interface ScheduledTask {
   name: string;
@@ -31,6 +32,7 @@ export class Scheduler {
 
     logger.info(`Scheduler started with ${this.scheduledTasks.size} scheduled tasks`);
     this.running = true;
+    eventBus.emit('event', { type: 'scheduler:state', state: 'running' });
   }
 
   async stop(): Promise<void> {
@@ -48,6 +50,7 @@ export class Scheduler {
     this.scheduledTasks.clear();
     logger.info('Scheduler stopped');
     this.running = false;
+    eventBus.emit('event', { type: 'scheduler:state', state: 'stopped' });
   }
 
   async restart(): Promise<void> {
@@ -115,6 +118,7 @@ export class Scheduler {
       task.start();
 
       logger.info(`Scheduled task: ${taskName} with expression "${schedule.expression}"`);
+      eventBus.emit('event', { type: 'task:scheduled', task: { name: taskName, pluginName, expression: schedule.expression, description: schedule.description } });
     } catch (error) {
       logger.error(`Failed to schedule task ${taskName}:`, error);
     }
@@ -123,6 +127,7 @@ export class Scheduler {
   private async executePluginTask(pluginName: string, taskDescription: string): Promise<void> {
     const startTime = Date.now();
     logger.debug(`Executing task: ${taskDescription} for plugin ${pluginName}`);
+    eventBus.emit('event', { type: 'job:started', pluginName, taskDescription, at: startTime });
 
     try {
       const plugin = this.pluginManager.getPlugin(pluginName);
@@ -147,9 +152,11 @@ export class Scheduler {
 
       const duration = Date.now() - startTime;
       logger.debug(`Task ${taskDescription} completed in ${duration}ms`);
+      eventBus.emit('event', { type: 'job:completed', pluginName, taskDescription, at: Date.now(), durationMs: duration });
 
     } catch (error) {
       logger.error(`Error executing task ${taskDescription} for plugin ${pluginName}:`, error);
+      eventBus.emit('event', { type: 'job:failed', pluginName, taskDescription, at: Date.now(), error: (error as any)?.message || 'Unknown error' });
     }
   }
 
@@ -256,6 +263,7 @@ export class Scheduler {
     this.scheduledTasks.delete(name);
 
     logger.info(`Removed scheduled task: ${name}`);
+    eventBus.emit('event', { type: 'task:removed', name });
     return true;
   }
 }

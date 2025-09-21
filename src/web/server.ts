@@ -4,6 +4,7 @@ import path from 'path';
 import { PluginManager } from '../core/PluginManager';
 import { Scheduler } from '../core/Scheduler';
 import { StateRegistry } from './stateRegistry';
+import { eventBus } from '../core/EventBus';
 
 export function createWebServer(opts: { pluginManager: PluginManager; scheduler: Scheduler }) {
   const app = express();
@@ -40,10 +41,11 @@ export function createWebServer(opts: { pluginManager: PluginManager; scheduler:
     // Initial snapshot
     send('snapshot', registry.getSnapshot());
 
-    const unsub = registry.subscribe((evt) => send('update', evt));
+    const onEvent = (evt: any) => send('update', evt);
+    eventBus.on('event', onEvent);
 
     req.on('close', () => {
-      unsub();
+      eventBus.off('event', onEvent);
       res.end();
     });
   });
@@ -55,4 +57,3 @@ export function createWebServer(opts: { pluginManager: PluginManager; scheduler:
 
   return { app, server, registry };
 }
-
