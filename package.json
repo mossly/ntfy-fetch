@@ -7,29 +7,39 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
+    "web:dev": "npm --prefix webui run dev",
+    "web:build": "npm --prefix webui run build && node scripts/copy-ui-to-dist.mjs",
     "test": "jest",
     "lint": "eslint src/**/*.ts",
     "type-check": "tsc --noEmit"
   },
-  "keywords": ["ntfy", "notifications", "tide", "noaa", "scheduler"],
+  "keywords": [
+    "ntfy",
+    "notifications",
+    "tide",
+    "noaa",
+    "scheduler"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "axios": "^1.6.2",
-    "node-cron": "^3.0.3",
-    "winston": "^3.11.0",
-    "dotenv": "^16.3.1",
     "date-fns": "^2.30.0",
-    "date-fns-tz": "^2.0.0"
+    "date-fns-tz": "^2.0.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.21.2",
+    "node-cron": "^3.0.3",
+    "winston": "^3.11.0"
   },
   "devDependencies": {
+    "@types/express": "^4.17.23",
+    "@types/jest": "^29.5.8",
     "@types/node": "^20.10.0",
     "@types/node-cron": "^3.0.11",
     "@typescript-eslint/eslint-plugin": "^6.13.1",
     "@typescript-eslint/parser": "^6.13.1",
     "eslint": "^8.54.0",
     "jest": "^29.7.0",
-    "@types/jest": "^29.5.8",
     "ts-jest": "^29.1.1",
     "tsx": "^4.6.0",
     "typescript": "^5.3.2"

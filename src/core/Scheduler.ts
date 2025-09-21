@@ -16,6 +16,7 @@ export class Scheduler {
   private pluginManager: PluginManager;
   private notificationService: NotificationService;
   private scheduledTasks: Map<string, ScheduledTask>;
+  private running: boolean = false;
 
   constructor(pluginManager: PluginManager, notificationService: NotificationService) {
     this.pluginManager = pluginManager;
@@ -29,6 +30,7 @@ export class Scheduler {
     await this.schedulePluginTasks();
 
     logger.info(`Scheduler started with ${this.scheduledTasks.size} scheduled tasks`);
+    this.running = true;
   }
 
   async stop(): Promise<void> {
@@ -45,6 +47,7 @@ export class Scheduler {
 
     this.scheduledTasks.clear();
     logger.info('Scheduler stopped');
+    this.running = false;
   }
 
   async restart(): Promise<void> {
@@ -192,6 +195,13 @@ export class Scheduler {
       pluginName: task.pluginName,
       nextRun: null // node-cron doesn't provide nextDate method
     }));
+  }
+
+  getState(): { state: 'running' | 'stopped'; taskCount: number } {
+    return {
+      state: this.running ? 'running' : 'stopped',
+      taskCount: this.scheduledTasks.size
+    };
   }
 
   async addCustomSchedule(

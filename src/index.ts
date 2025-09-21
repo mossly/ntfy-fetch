@@ -6,6 +6,7 @@ import { EventQueue } from './core/EventQueue';
 import { EventScheduler } from './core/EventScheduler';
 import { logger } from './utils/logger';
 import { TidePluginV2 } from './plugins/tide/TidePluginV2';
+import { createWebServer } from './web/server';
 
 class NtfyFetchService {
   private configManager: ConfigManager;
@@ -80,6 +81,13 @@ class NtfyFetchService {
 
       this.isRunning = true;
       logger.info('🚀 ntfy-fetch service started successfully');
+
+      // Optionally start web UI server
+      if (process.env.WEBUI === 'true') {
+        const port = Number(process.env.WEBUI_PORT || 3000);
+        const { server } = createWebServer({ pluginManager: this.pluginManager, scheduler: this.scheduler });
+        server.listen(port, () => logger.info(`Web UI available at http://localhost:${port}/ui`));
+      }
 
       // Send startup notification
       await this.sendStartupNotification();

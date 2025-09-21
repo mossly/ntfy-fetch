@@ -12,7 +12,9 @@
       "WebSearch",
       "WebFetch(domain:docs.ntfy.sh)",
       "Bash(rm:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(LOG_LEVEL=debug npm run build)",
+      "Bash(LOG_LEVEL=debug node dist/index.js test)"
     ],
     "deny": [],
     "ask": []
