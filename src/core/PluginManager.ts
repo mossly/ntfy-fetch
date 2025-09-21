@@ -1,6 +1,7 @@
 import { IPlugin, PluginConfig } from '../types';
 import { TidePlugin } from '../plugins/tide/TidePlugin';
 import { TidePluginV2 } from '../plugins/tide/TidePluginV2';
+import { AdaPricePlugin } from '../plugins/coingecko/AdaPricePlugin';
 import { logger } from '../utils/logger';
 
 export class PluginManager {
@@ -61,11 +62,16 @@ export class PluginManager {
   }
 
   getEnabledPlugins(): IPlugin[] {
-    return Array.from(this.plugins.values()).filter(plugin =>
-      this.pluginConfigs.find(config =>
-        config.name === plugin.name && config.enabled
-      )
-    );
+    const enabledPlugins: IPlugin[] = [];
+
+    for (const [configName, plugin] of this.plugins) {
+      const config = this.pluginConfigs.find(c => c.name === configName);
+      if (config && config.enabled) {
+        enabledPlugins.push(plugin);
+      }
+    }
+
+    return enabledPlugins;
   }
 
   async reloadPlugin(name: string): Promise<void> {
@@ -113,6 +119,9 @@ export class PluginManager {
       case 'tide-v2':
         // Explicit V2 plugin creation
         return new TidePluginV2(config);
+
+      case 'ada-price':
+        return new AdaPricePlugin(config);
 
       default:
         throw new Error(`Unknown plugin type: ${config.name}`);

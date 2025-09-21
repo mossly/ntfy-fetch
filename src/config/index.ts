@@ -75,7 +75,8 @@ export class ConfigManager {
 
     const config: NtfyConfig = {
       url: ntfyUrl,
-      topic: ntfyTopic
+      topic: ntfyTopic,
+      debugTopic: 'debug'
     };
 
     // Add authentication if provided
@@ -143,6 +144,24 @@ export class ConfigManager {
           scheduling: {
             refreshIntervalHours: 6, // Refresh tide data every 6 hours
             scheduleAheadHours: 24 // Schedule events 24 hours ahead
+          }
+        }
+      },
+      {
+        name: 'ada-price',
+        enabled: true,
+        provider: 'coingecko',
+        config: {
+          vs_currency: 'usd',
+          dailyNotification: {
+            enabled: true,
+            time: '07:00'
+          },
+          flashCrashDetection: {
+            enabled: true,
+            priceHistoryDays: 1,
+            standardDeviationThreshold: 2.0,
+            movingAveragePeriod: 24
           }
         }
       }

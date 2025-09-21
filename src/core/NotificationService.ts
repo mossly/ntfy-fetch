@@ -11,7 +11,12 @@ export class NotificationService {
 
   async sendNotification(notification: NotificationData): Promise<boolean> {
     try {
-      const url = `${this.config.url}/${this.config.topic}`;
+      // Use debug topic if this is a debug notification
+      const topic = notification.isDebug
+        ? this.config.debugTopic
+        : this.config.topic;
+
+      const url = `${this.config.url}/${topic}`;
 
       const headers: Record<string, string> = {
         'Content-Type': 'text/plain; charset=utf-8'
@@ -126,10 +131,10 @@ export class NotificationService {
   async testConnection(): Promise<boolean> {
     try {
       const testNotification: NotificationData = {
-        title: 'ntfy-fetch Test',
-        message: 'Connection test successful! 🎉',
+        title: 'ntfy-fetch Connected',
+        message: 'Connected to NOAA API and CoinGecko API',
         priority: 'low',
-        tags: ['test']
+        isDebug: true
       };
 
       return await this.sendNotification(testNotification);

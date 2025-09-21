@@ -5,6 +5,7 @@ export interface NotificationData {
   tags?: string[];
   click?: string;
   attach?: string;
+  isDebug?: boolean;
 }
 
 export interface ScheduleConfig {
@@ -23,6 +24,7 @@ export interface PluginConfig {
 export interface NtfyConfig {
   url: string;
   topic: string;
+  debugTopic: string;
   auth?: {
     type: 'basic' | 'token';
     username?: string;

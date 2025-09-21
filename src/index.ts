@@ -199,7 +199,7 @@ class NtfyFetchService {
         title: 'ntfy-fetch Started',
         message,
         priority: 'low',
-        tags: ['startup', 'service']
+        isDebug: true
       });
     } catch (error) {
       logger.warn('Failed to send startup notification:', error);
