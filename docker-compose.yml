@@ -1,14 +1,20 @@
 services:
   ntfy-fetch:
-    build: .
+    image: ghcr.io/mossly/ntfy-fetch:latest
     container_name: ntfy-fetch
     restart: unless-stopped
     env_file:
       - .env
     environment:
       - NODE_ENV=production
-      - TZ=Pacific/Rarotonga
+      - TZ=${TZ:-Pacific/Rarotonga}
+      - USE_EVENT_SCHEDULER=${USE_EVENT_SCHEDULER:-true}
+      - WEBUI=${WEBUI:-true}
+      - WEBUI_PORT=${WEBUI_PORT:-3000}
+    ports:
+      - "${HOST_PORT:-3033}:${WEBUI_PORT:-3000}"
     volumes:
       - ./data:/app/data
       - ./config:/app/config
-      - ./plugins:/app/plugins
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"

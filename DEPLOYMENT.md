@@ -231,3 +231,19 @@ Data directory can be recreated automatically from NOAA API.
 - Test individual components: `docker exec ntfy-fetch node dist/index.js test`
 - Verify ntfy server connectivity outside the container
 - Review NOAA station status: https://tidesandcurrents.noaa.gov/stationhome.html?id=TPT2853
+## Simplified Compose Deployment
+
+1) Prepare env
+- `cp .env.example .env` and set `NTFY_URL`, `NTFY_TOPIC` (and creds if required).
+- UI is enabled by default on host `:${HOST_PORT:-3033}`.
+
+2) Start/Update
+- `docker compose up -d`
+
+3) Verify
+- API: `http://<host>:${HOST_PORT:-3033}/api/health`
+- UI: `http://<host>:${HOST_PORT:-3033}/ui`
+
+Notes
+- Watchtower label is included for automatic updates from GHCR.
+- To build locally instead, replace `image:` with `build: .`.
