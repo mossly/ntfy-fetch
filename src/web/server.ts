@@ -53,12 +53,28 @@ export function createWebServer(opts: { pluginManager: PluginManager; scheduler:
   });
 
   // Static UI (built assets live in dist/ui)
-  const uiDir = path.join(process.cwd(), 'dist', 'ui');
-  if (!fs.existsSync(uiDir)) {
+  // Resolve UI dir robustly: env override -> compiled-relative -> cwd fallback
+  const candidates: string[] = [];
+  if (process.env.WEBUI_DIR) candidates.push(path.resolve(process.env.WEBUI_DIR));
+  candidates.push(path.resolve(__dirname, '..', 'ui'));
+  candidates.push(path.resolve(process.cwd(), 'dist', 'ui'));
+
+  const found = candidates.find((c) => fs.existsSync(path.join(c, 'index.html')));
+  const uiDir = found || candidates[0];
+
+  if (!found) {
     logger.warn(`Web UI assets not found at ${uiDir}. The /ui route will 404 until the UI is built (run \`npm run web:build\`).`);
+  } else {
+    logger.info(`Serving Web UI from ${uiDir}`);
   }
+
+  // Serve static assets. We mount both /ui (preferred) and /assets (to support builds with absolute asset paths)
   app.use('/ui', express.static(uiDir));
-  app.get('/', (_req, res) => res.redirect('/ui'));
+  app.use('/assets', express.static(path.join(uiDir, 'assets')));
+
+  // Serve index.html for UI root and SPA routes
+  app.get('/ui', (_req, res) => res.sendFile(path.join(uiDir, 'index.html')));
+  app.get('/ui/*', (_req, res) => res.sendFile(path.join(uiDir, 'index.html')));  app.get('/', (_req, res) => res.redirect('/ui'));
 
   return { app, server, registry };
 }
