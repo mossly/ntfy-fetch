@@ -7,6 +7,9 @@ import { EventScheduler } from './core/EventScheduler';
 import { logger } from './utils/logger';
 import { TidePluginV2 } from './plugins/tide/TidePluginV2';
 import { createWebServer } from './web/server';
+import pkg from '../package.json';
+
+const APP_VERSION: string = (pkg as any).version || '0.0.0';
 
 class NtfyFetchService {
   private configManager: ConfigManager;
@@ -203,14 +206,15 @@ class NtfyFetchService {
       const enabledPluginsCount = config.plugins.filter(p => p.enabled).length;
       const scheduledTasksCount = this.scheduler.getScheduledTasks().length;
 
-      let message = `Service started with ${enabledPluginsCount} plugins and ${scheduledTasksCount} scheduled tasks`;
+      let message = `Version: v${APP_VERSION}` +
+        `\nService started with ${enabledPluginsCount} plugins and ${scheduledTasksCount} scheduled tasks`;
 
       if (this.useEventScheduler) {
         message += '\n✨ Event scheduler enabled for precise notifications';
       }
 
       await this.notificationService.sendNotification({
-        title: 'ntfy-fetch Started',
+        title: `ntfy-fetch Started (v${APP_VERSION})`,
         message,
         priority: 'low',
         isDebug: true
