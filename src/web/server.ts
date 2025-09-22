@@ -1,10 +1,12 @@
 import http from 'http';
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { PluginManager } from '../core/PluginManager';
 import { Scheduler } from '../core/Scheduler';
 import { StateRegistry } from './stateRegistry';
 import { eventBus } from '../core/EventBus';
+import { logger } from '../utils/logger';
 
 export function createWebServer(opts: { pluginManager: PluginManager; scheduler: Scheduler }) {
   const app = express();
@@ -52,6 +54,9 @@ export function createWebServer(opts: { pluginManager: PluginManager; scheduler:
 
   // Static UI (built assets live in dist/ui)
   const uiDir = path.join(process.cwd(), 'dist', 'ui');
+  if (!fs.existsSync(uiDir)) {
+    logger.warn(`Web UI assets not found at ${uiDir}. The /ui route will 404 until the UI is built (run \`npm run web:build\`).`);
+  }
   app.use('/ui', express.static(uiDir));
   app.get('/', (_req, res) => res.redirect('/ui'));
 
