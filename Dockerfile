@@ -40,19 +40,23 @@ RUN mkdir -p data config plugins && \
 # Switch to non-root user
 USER ntfy-fetch
 
-# Health check
+# Health check (only when WEBUI is enabled)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD node -e "const http = require('http'); \
-        const options = { hostname: 'localhost', port: 3000, path: '/health', timeout: 2000 }; \
-        const req = http.request(options, (res) => process.exit(res.statusCode === 200 ? 0 : 1)); \
-        req.on('error', () => process.exit(1)); \
+    CMD node -e "const http=require('http'); \
+        const raw=(process.env.WEBUI||'').toLowerCase(); \
+        const enabled=['true','1','yes','on'].includes(raw); \
+        if(!enabled){process.exit(0)} \
+        const port=parseInt(process.env.WEBUI_PORT||'3000',10); \
+        const options={hostname:'localhost',port,path:'/api/health',timeout:2000}; \
+        const req=http.request(options,(res)=>process.exit(res.statusCode===200?0:1)); \
+        req.on('error',()=>process.exit(1)); \
         req.end();" || exit 1
 
 # Set environment variables
 ENV NODE_ENV=production
 ENV TZ=Pacific/Rarotonga
 
-# Expose port (if you add a health endpoint later)
+# Expose default UI port (override via -p <host>:<container>)
 EXPOSE 3000
 
 # Use dumb-init to handle signals properly

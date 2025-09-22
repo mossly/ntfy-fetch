@@ -83,10 +83,16 @@ class NtfyFetchService {
       logger.info('🚀 ntfy-fetch service started successfully');
 
       // Optionally start web UI server
-      if (process.env.WEBUI === 'true') {
-        const port = Number(process.env.WEBUI_PORT || 3000);
+      const webuiRaw = (process.env.WEBUI || '').toString().trim().toLowerCase();
+      const webuiEnabled = webuiRaw === 'true' || webuiRaw === '1' || webuiRaw === 'yes' || webuiRaw === 'on';
+      const port = Number(process.env.WEBUI_PORT || 3000);
+
+      if (webuiEnabled) {
+        logger.info(`Enabling Web UI on port ${port} (WEBUI=${process.env.WEBUI})`);
         const { server } = createWebServer({ pluginManager: this.pluginManager, scheduler: this.scheduler });
         server.listen(port, () => logger.info(`Web UI available at http://localhost:${port}/ui`));
+      } else {
+        logger.info(`WEBUI disabled (WEBUI=${process.env.WEBUI ?? 'undefined'})`);
       }
 
       // Send startup notification
