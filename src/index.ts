@@ -79,10 +79,11 @@ class NtfyFetchService {
         await this.eventScheduler.start();
       }
 
-      // Start scheduler
+  // Start scheduler
       await this.scheduler.start();
 
       this.isRunning = true;
+      logger.info(`ntfy-fetch version v${APP_VERSION}`);
       logger.info('🚀 ntfy-fetch service started successfully');
 
       // Optionally start web UI server

@@ -2,20 +2,20 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-// Copy package files
+# Copy package files
 COPY package*.json ./
 COPY tsconfig.json ./
 COPY webui/package*.json ./webui/
 
-// Install ALL dependencies (including dev dependencies for building both app and webui)
+# Install ALL dependencies (including dev dependencies for building both app and webui)
 RUN npm ci --silent && npm --prefix webui ci --silent
 
-// Copy source code
+# Copy source code
 COPY src/ ./src/
 COPY webui/ ./webui/
 COPY scripts/copy-ui-to-dist.mjs ./scripts/
 
-// Build server and web UI then copy UI to dist/ui
+# Build server and web UI then copy UI to dist/ui
 RUN npm --prefix webui run build && npm run build && node scripts/copy-ui-to-dist.mjs
 
 FROM node:18-alpine AS runtime
@@ -33,7 +33,7 @@ RUN addgroup -g 1001 -S nodejs && \
 COPY package*.json ./
 RUN npm ci --only=production --silent && npm cache clean --force
 
-// Copy built application from builder stage (includes dist/ui)
+# Copy built application from builder stage (includes dist/ui)
 COPY --from=builder /app/dist ./dist
 
 # Create necessary directories and set permissions
