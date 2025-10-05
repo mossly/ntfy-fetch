@@ -20,7 +20,13 @@ export function createWebServer(opts: {
   const server = http.createServer(app);
   const registry = new StateRegistry(opts.pluginManager, opts.scheduler);
 
-  app.use(express.json());
+  // Apply JSON body parser to all routes EXCEPT /mcp/message (MCP SDK needs raw stream)
+  app.use((req, res, next) => {
+    if (req.path === '/mcp/message') {
+      return next();
+    }
+    express.json()(req, res, next);
+  });
 
   // ============================================
   // MCP Server Setup
