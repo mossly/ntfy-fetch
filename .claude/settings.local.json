@@ -14,7 +14,16 @@
       "Bash(rm:*)",
       "Bash(find:*)",
       "Bash(LOG_LEVEL=debug npm run build)",
-      "Bash(LOG_LEVEL=debug node dist/index.js test)"
+      "Bash(LOG_LEVEL=debug node dist/index.js test)",
+      "Bash(git clone:*)",
+      "Read(//tmp/narrative-assistant/**)",
+      "Read(//tmp/narrative-assistant/app/**)",
+      "Bash(ssh:*)",
+      "Bash(cat:*)",
+      "Bash(docker build:*)",
+      "Bash(scp:*)",
+      "Bash(curl -s \"https://ghcr.io/v2/mossly/ntfy-fetch/manifests/latest\" -H \"Accept: application/vnd.docker.distribution.manifest.v2+json\")",
+      "Bash(gh run list:*)"
     ],
     "deny": [],
     "ask": []

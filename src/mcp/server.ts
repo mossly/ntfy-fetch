@@ -33,6 +33,7 @@ export function createMcpServer(options: McpServerOptions): Server {
 
   // List available tools
   server.setRequestHandler(ListToolsRequestSchema, async () => {
+    logger.info('[MCP] ListToolsRequest received');
     const tools = [
       {
         name: 'list_plugins',
@@ -152,11 +153,13 @@ export function createMcpServer(options: McpServerOptions): Server {
       } as any);
     }
 
+    logger.info(`[MCP] Returning ${tools.length} tools`);
     return { tools };
   });
 
   // Handle tool calls
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    logger.info(`[MCP] CallToolRequest received: ${request.params.name}`);
     const { name, arguments: args } = request.params;
 
     try {
@@ -350,6 +353,7 @@ export function createMcpServer(options: McpServerOptions): Server {
 
   // List available resources
   server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    logger.info('[MCP] ListResourcesRequest received');
     return {
       resources: [
         {

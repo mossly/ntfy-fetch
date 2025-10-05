@@ -18,3 +18,19 @@ services:
       - ./config:/app/config
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
+      # Homepage dashboard integration
+      - "homepage.group=Notifications"
+      - "homepage.name=ntfy-fetch"
+      - "homepage.icon=ntfy.png"
+      - "homepage.href=http://${HOST_IP:-localhost}:${HOST_PORT:-3033}/ui"
+      - "homepage.description=Extensible notification service with tide alerts"
+      - "homepage.widget.type=customapi"
+      - "homepage.widget.url=http://ntfy-fetch:${WEBUI_PORT:-3000}/api/snapshot"
+      - "homepage.widget.mappings.0.label=Uptime"
+      - "homepage.widget.mappings.0.field=system.uptimeSec"
+      - "homepage.widget.mappings.0.format=duration"
+      - "homepage.widget.mappings.1.label=Scheduler"
+      - "homepage.widget.mappings.1.field=system.schedulerState"
+      - "homepage.widget.mappings.2.label=Plugins"
+      - "homepage.widget.mappings.2.field=system.taskCount"
+      - "homepage.widget.mappings.2.suffix= tasks"

@@ -40,13 +40,26 @@ export function createWebServer(opts: {
     const transport = new SSEServerTransport('/mcp/message', res);
     activeTransports.add(transport);
 
+    // Add detailed logging for transport events
+    transport.onclose = () => {
+      logger.info('MCP transport closed');
+      activeTransports.delete(transport);
+    };
+
+    transport.onerror = (error) => {
+      logger.error('MCP transport error:', error);
+      activeTransports.delete(transport);
+    };
+
     res.on('close', () => {
       activeTransports.delete(transport);
       logger.info('MCP client disconnected');
     });
 
     try {
+      logger.info('Attempting to connect MCP server to transport');
       await mcpServer.connect(transport);
+      logger.info('MCP server successfully connected to transport');
     } catch (error) {
       logger.error('MCP connection error:', error);
       activeTransports.delete(transport);

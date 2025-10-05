@@ -247,3 +247,49 @@ Data directory can be recreated automatically from NOAA API.
 Notes
 - Watchtower label is included for automatic updates from GHCR.
 - To build locally instead, replace `image:` with `build: .`.
+
+## 🏠 Homepage Dashboard Integration
+
+ntfy-fetch can be integrated into [Homepage](https://gethomepage.dev/) to display service status on your dashboard.
+
+### Option 1: Docker Labels (Automatic)
+The `docker-compose.yml` includes Homepage labels. If Homepage has Docker socket access, the service will appear automatically.
+
+**What you'll see:**
+- Service uptime
+- Scheduler state (running/stopped)
+- Number of active scheduled tasks
+
+**Requirements:**
+- Homepage must have Docker socket access (`/var/run/docker.sock`)
+- Set `HOST_IP` in your `.env` for correct href link (defaults to localhost)
+
+### Option 2: Manual Configuration
+If not using Docker labels, add to Homepage's `services.yaml`:
+
+```yaml
+- Notifications:
+    - ntfy-fetch:
+        href: http://your-server-ip:3033/ui
+        description: Extensible notification service with tide alerts
+        icon: ntfy.png
+        widget:
+          type: customapi
+          url: http://your-server-ip:3033/api/snapshot
+          mappings:
+            - label: Uptime
+              field: system.uptimeSec
+              format: duration
+            - label: Scheduler
+              field: system.schedulerState
+            - label: Tasks
+              field: system.taskCount
+              suffix: " active"
+```
+
+See [config/homepage-example.yaml](config/homepage-example.yaml) for more configuration options.
+
+### Customization
+- **Icon**: Use `ntfy.png` or any [supported Homepage icon](https://gethomepage.dev/configs/service-widgets/#icons)
+- **Group**: Change `homepage.group` label to organize differently
+- **Refresh Rate**: Add `homepage.widget.refreshInterval=30000` for 30-second updates
