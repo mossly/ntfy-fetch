@@ -4,17 +4,64 @@ import path from 'path';
 import fs from 'fs';
 import { PluginManager } from '../core/PluginManager';
 import { Scheduler } from '../core/Scheduler';
+import { EventScheduler } from '../core/EventScheduler';
 import { StateRegistry } from './stateRegistry';
 import { eventBus } from '../core/EventBus';
 import { logger } from '../utils/logger';
+import { createMcpServer } from '../mcp/server';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 
-export function createWebServer(opts: { pluginManager: PluginManager; scheduler: Scheduler }) {
+export function createWebServer(opts: {
+  pluginManager: PluginManager;
+  scheduler: Scheduler;
+  eventScheduler?: EventScheduler;
+}) {
   const app = express();
   const server = http.createServer(app);
   const registry = new StateRegistry(opts.pluginManager, opts.scheduler);
 
   app.use(express.json());
 
+  // ============================================
+  // MCP Server Setup
+  // ============================================
+  const mcpServer = createMcpServer({
+    registry,
+    eventScheduler: opts.eventScheduler
+  });
+
+  // Track active MCP transports for proper cleanup
+  const activeTransports = new Set<SSEServerTransport>();
+
+  // MCP SSE endpoint
+  app.get('/mcp/sse', async (_req, res) => {
+    logger.info('MCP client connected via SSE');
+
+    const transport = new SSEServerTransport('/mcp/message', res);
+    activeTransports.add(transport);
+
+    res.on('close', () => {
+      activeTransports.delete(transport);
+      logger.info('MCP client disconnected');
+    });
+
+    try {
+      await mcpServer.connect(transport);
+    } catch (error) {
+      logger.error('MCP connection error:', error);
+      activeTransports.delete(transport);
+    }
+  });
+
+  // MCP message endpoint
+  app.post('/mcp/message', async (_req, res) => {
+    // The SSE transport will handle this
+    res.status(200).end();
+  });
+
+  // ============================================
+  // REST API Endpoints
+  // ============================================
   app.get('/api/health', (_req, res) => {
     res.json(registry.getSnapshot().system);
   });

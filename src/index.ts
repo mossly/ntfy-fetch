@@ -93,8 +93,15 @@ class NtfyFetchService {
 
       if (webuiEnabled) {
         logger.info(`Enabling Web UI on port ${port} (WEBUI=${process.env.WEBUI})`);
-        const { server } = createWebServer({ pluginManager: this.pluginManager, scheduler: this.scheduler });
-        server.listen(port, () => logger.info(`Web UI available at http://localhost:${port}/ui`));
+        const { server } = createWebServer({
+          pluginManager: this.pluginManager,
+          scheduler: this.scheduler,
+          eventScheduler: this.eventScheduler || undefined
+        });
+        server.listen(port, () => {
+          logger.info(`Web UI available at http://localhost:${port}/ui`);
+          logger.info(`MCP endpoint available at http://localhost:${port}/mcp/sse`);
+        });
       } else {
         logger.info(`WEBUI disabled (WEBUI=${process.env.WEBUI ?? 'undefined'})`);
       }
