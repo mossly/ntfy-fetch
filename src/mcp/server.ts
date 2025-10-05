@@ -37,61 +37,119 @@ export function createMcpServer(options: McpServerOptions): Server {
       {
         name: 'list_plugins',
         description: 'List all notification plugins with their status and configuration',
-        inputSchema: z.object({}).strict(),
+        inputSchema: {
+          type: 'object' as const,
+          properties: {},
+          required: [] as string[],
+        },
       },
       {
         name: 'toggle_plugin',
         description: 'Enable or disable a notification plugin',
-        inputSchema: z.object({
-          name: z.string().describe('The name of the plugin to toggle'),
-        }).strict(),
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            name: {
+              type: 'string' as const,
+              description: 'The name of the plugin to toggle',
+            },
+          },
+          required: ['name'],
+        },
       },
       {
         name: 'list_tasks',
         description: 'List all scheduled tasks across all plugins',
-        inputSchema: z.object({}).strict(),
+        inputSchema: {
+          type: 'object' as const,
+          properties: {},
+          required: [] as string[],
+        },
       },
       {
         name: 'toggle_task',
         description: 'Pause or resume a scheduled task',
-        inputSchema: z.object({
-          name: z.string().describe('The name of the task to toggle'),
-        }).strict(),
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            name: {
+              type: 'string' as const,
+              description: 'The name of the task to toggle',
+            },
+          },
+          required: ['name'],
+        },
       },
       {
         name: 'get_system_status',
         description: 'Get current system status including uptime, scheduler state, and task count',
-        inputSchema: z.object({}).strict(),
+        inputSchema: {
+          type: 'object' as const,
+          properties: {},
+          required: [] as string[],
+        },
       },
     ];
 
     // Add event scheduler tools if available
     if (eventScheduler) {
-      tools.push(
-        {
-          name: 'schedule_notification',
-          description: 'Schedule a one-time notification to be sent at a specific time',
-          inputSchema: z.object({
-            title: z.string().describe('Notification title'),
-            message: z.string().describe('Notification message body'),
-            scheduledFor: z.string().describe('ISO 8601 datetime string (e.g., "2025-10-05T14:30:00-10:00")'),
-            priority: z.enum(['min', 'low', 'default', 'high', 'max']).optional().describe('Priority level'),
-            tags: z.array(z.string()).optional().describe('Optional list of tags for the notification'),
-          }).strict(),
+      tools.push({
+        name: 'schedule_notification',
+        description: 'Schedule a one-time notification to be sent at a specific time',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            title: {
+              type: 'string' as const,
+              description: 'Notification title',
+            },
+            message: {
+              type: 'string' as const,
+              description: 'Notification message body',
+            },
+            scheduledFor: {
+              type: 'string' as const,
+              description: 'ISO 8601 datetime string (e.g., "2025-10-05T14:30:00-10:00")',
+            },
+            priority: {
+              type: 'string' as const,
+              enum: ['min', 'low', 'default', 'high', 'max'],
+              description: 'Priority level',
+            },
+            tags: {
+              type: 'array' as const,
+              items: { type: 'string' as const },
+              description: 'Optional list of tags for the notification',
+            },
+          },
+          required: ['title', 'message', 'scheduledFor'],
         },
-        {
-          name: 'list_scheduled_notifications',
-          description: 'List all currently scheduled notifications (upcoming one-time events)',
-          inputSchema: z.object({}).strict(),
+      } as any);
+
+      tools.push({
+        name: 'list_scheduled_notifications',
+        description: 'List all currently scheduled notifications (upcoming one-time events)',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {},
+          required: [] as string[],
         },
-        {
-          name: 'cancel_notification',
-          description: 'Cancel a scheduled one-time notification',
-          inputSchema: z.object({
-            eventId: z.string().describe('ID of the event to cancel'),
-          }).strict(),
-        }
-      );
+      } as any);
+
+      tools.push({
+        name: 'cancel_notification',
+        description: 'Cancel a scheduled one-time notification',
+        inputSchema: {
+          type: 'object' as const,
+          properties: {
+            eventId: {
+              type: 'string' as const,
+              description: 'ID of the event to cancel',
+            },
+          },
+          required: ['eventId'],
+        },
+      } as any);
     }
 
     return { tools };
