@@ -30,46 +30,69 @@ export function createWebServer(opts: {
     eventScheduler: opts.eventScheduler
   });
 
-  // Track active MCP transports for proper cleanup
-  const activeTransports = new Set<SSEServerTransport>();
+  // Track active MCP transports by session ID for message routing
+  const activeTransports = new Map<string, SSEServerTransport>();
 
   // MCP SSE endpoint
   app.get('/mcp/sse', async (_req, res) => {
     logger.info('MCP client connected via SSE');
 
     const transport = new SSEServerTransport('/mcp/message', res);
-    activeTransports.add(transport);
 
     // Add detailed logging for transport events
     transport.onclose = () => {
-      logger.info('MCP transport closed');
-      activeTransports.delete(transport);
+      logger.info(`MCP transport closed (session: ${transport.sessionId})`);
+      activeTransports.delete(transport.sessionId);
     };
 
     transport.onerror = (error) => {
-      logger.error('MCP transport error:', error);
-      activeTransports.delete(transport);
+      logger.error(`MCP transport error (session: ${transport.sessionId}):`, error);
+      activeTransports.delete(transport.sessionId);
     };
 
     res.on('close', () => {
-      activeTransports.delete(transport);
-      logger.info('MCP client disconnected');
+      activeTransports.delete(transport.sessionId);
+      logger.info(`MCP client disconnected (session: ${transport.sessionId})`);
     });
 
     try {
       logger.info('Attempting to connect MCP server to transport');
       await mcpServer.connect(transport);
-      logger.info('MCP server successfully connected to transport');
+      logger.info(`MCP server successfully connected to transport (session: ${transport.sessionId})`);
+
+      // Add to active transports AFTER successful connection
+      activeTransports.set(transport.sessionId, transport);
     } catch (error) {
       logger.error('MCP connection error:', error);
-      activeTransports.delete(transport);
+      activeTransports.delete(transport.sessionId);
     }
   });
 
-  // MCP message endpoint
-  app.post('/mcp/message', async (_req, res) => {
-    // The SSE transport will handle this
-    res.status(200).end();
+  // MCP message endpoint - route messages to the correct transport by session ID
+  app.post('/mcp/message', async (req, res) => {
+    try {
+      const sessionId = req.query.sessionId as string;
+
+      if (!sessionId) {
+        logger.error('MCP message received without sessionId');
+        res.status(400).json({ error: 'sessionId required' });
+        return;
+      }
+
+      const transport = activeTransports.get(sessionId);
+
+      if (!transport) {
+        logger.error(`MCP message received for unknown session: ${sessionId}`);
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+
+      logger.info(`MCP message received for session: ${sessionId}`);
+      await transport.handlePostMessage(req, res);
+    } catch (error) {
+      logger.error('Error handling MCP message:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // ============================================

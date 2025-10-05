@@ -23,7 +23,9 @@
       "Bash(docker build:*)",
       "Bash(scp:*)",
       "Bash(curl -s \"https://ghcr.io/v2/mossly/ntfy-fetch/manifests/latest\" -H \"Accept: application/vnd.docker.distribution.manifest.v2+json\")",
-      "Bash(gh run list:*)"
+      "Bash(gh run list:*)",
+      "Bash(gh run watch:*)",
+      "Bash(xargs gh run watch:*)"
     ],
     "deny": [],
     "ask": []
