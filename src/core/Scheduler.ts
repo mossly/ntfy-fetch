@@ -11,6 +11,7 @@ interface ScheduledTask {
   description: string;
   task: cron.ScheduledTask;
   pluginName: string;
+  paused: boolean;
 }
 
 export class Scheduler {
@@ -109,7 +110,8 @@ export class Scheduler {
         expression: schedule.expression,
         description: schedule.description,
         task,
-        pluginName
+        pluginName,
+        paused: false
       };
 
       this.scheduledTasks.set(taskName, scheduledTask);
@@ -194,13 +196,15 @@ export class Scheduler {
     description: string;
     pluginName: string;
     nextRun: Date | null;
+    paused: boolean;
   }> {
     return Array.from(this.scheduledTasks.values()).map(task => ({
       name: task.name,
       expression: task.expression,
       description: task.description,
       pluginName: task.pluginName,
-      nextRun: null // node-cron doesn't provide nextDate method
+      nextRun: null, // node-cron doesn't provide nextDate method
+      paused: task.paused
     }));
   }
 
@@ -246,7 +250,8 @@ export class Scheduler {
       expression,
       description,
       task,
-      pluginName: 'custom'
+      pluginName: 'custom',
+      paused: false
     };
 
     this.scheduledTasks.set(name, scheduledTask);
@@ -265,5 +270,46 @@ export class Scheduler {
     logger.info(`Removed scheduled task: ${name}`);
     eventBus.emit('event', { type: 'task:removed', name });
     return true;
+  }
+
+  pauseTask(name: string): boolean {
+    const scheduledTask = this.scheduledTasks.get(name);
+    if (!scheduledTask || scheduledTask.paused) {
+      return false;
+    }
+
+    scheduledTask.task.stop();
+    scheduledTask.paused = true;
+
+    logger.info(`Paused scheduled task: ${name}`);
+    eventBus.emit('event', { type: 'task:paused', name });
+    return true;
+  }
+
+  resumeTask(name: string): boolean {
+    const scheduledTask = this.scheduledTasks.get(name);
+    if (!scheduledTask || !scheduledTask.paused) {
+      return false;
+    }
+
+    scheduledTask.task.start();
+    scheduledTask.paused = false;
+
+    logger.info(`Resumed scheduled task: ${name}`);
+    eventBus.emit('event', { type: 'task:resumed', name });
+    return true;
+  }
+
+  toggleTask(name: string): boolean {
+    const scheduledTask = this.scheduledTasks.get(name);
+    if (!scheduledTask) {
+      return false;
+    }
+
+    if (scheduledTask.paused) {
+      return this.resumeTask(name);
+    } else {
+      return this.pauseTask(name);
+    }
   }
 }

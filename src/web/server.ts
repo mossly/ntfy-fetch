@@ -13,6 +13,8 @@ export function createWebServer(opts: { pluginManager: PluginManager; scheduler:
   const server = http.createServer(app);
   const registry = new StateRegistry(opts.pluginManager, opts.scheduler);
 
+  app.use(express.json());
+
   app.get('/api/health', (_req, res) => {
     res.json(registry.getSnapshot().system);
   });
@@ -27,6 +29,26 @@ export function createWebServer(opts: { pluginManager: PluginManager; scheduler:
 
   app.get('/api/snapshot', (_req, res) => {
     res.json(registry.getSnapshot());
+  });
+
+  app.post('/api/plugins/:name/toggle', async (req, res) => {
+    try {
+      const { name } = req.params;
+      await registry.togglePlugin(name);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/tasks/:name/toggle', async (req, res) => {
+    try {
+      const { name } = req.params;
+      await registry.toggleTask(name);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
   });
 
   app.get('/api/events/stream', (req, res) => {

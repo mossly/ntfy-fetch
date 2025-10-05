@@ -159,9 +159,8 @@ export class ConfigManager {
           },
           flashCrashDetection: {
             enabled: true,
-            priceHistoryDays: 1,
-            standardDeviationThreshold: 2.0,
-            movingAveragePeriod: 24
+            percentageThreshold: 10, // Alert on ±10% price change
+            timeWindowMinutes: 60 // Within 1 hour window
           }
         }
       }

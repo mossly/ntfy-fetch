@@ -8,13 +8,14 @@ export interface SystemSnapshot {
     schedulerState: 'running' | 'stopped';
     taskCount: number;
   };
-  plugins: Array<{ name: string; enabled: boolean; initialized: boolean; version: string }>;
+  plugins: Array<{ name: string; enabled: boolean; initialized: boolean; version: string; description: string }>;
   tasks: Array<{
     name: string;
     expression: string;
     description: string;
     pluginName: string;
     nextRun: Date | null;
+    paused: boolean;
   }>;
 }
 
@@ -35,6 +36,19 @@ export class StateRegistry {
       plugins: this.pluginManager.getPluginStatus(),
       tasks: this.scheduler.getScheduledTasks(),
     };
+  }
+
+  async togglePlugin(name: string): Promise<void> {
+    // Note: This would require config file modifications which is complex
+    // For now, we'll throw an error suggesting manual config edit
+    throw new Error('Plugin toggling requires config file modification. Please edit config/plugins.json manually.');
+  }
+
+  async toggleTask(name: string): Promise<void> {
+    const success = this.scheduler.toggleTask(name);
+    if (!success) {
+      throw new Error(`Task ${name} not found or could not be toggled`);
+    }
   }
 
   publish(event: any): void {

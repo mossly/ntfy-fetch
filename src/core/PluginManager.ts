@@ -173,14 +173,16 @@ export class PluginManager {
     logger.info('Plugin configurations updated successfully');
   }
 
-  getPluginStatus(): { name: string; enabled: boolean; initialized: boolean; version: string }[] {
+  getPluginStatus(): { name: string; enabled: boolean; initialized: boolean; version: string; description: string }[] {
     return this.pluginConfigs.map(config => {
       const plugin = this.plugins.get(config.name);
+      const metadata = plugin ? (plugin as any).metadata : null;
       return {
         name: config.name,
         enabled: config.enabled,
         initialized: !!plugin,
-        version: plugin?.version || 'unknown'
+        version: plugin?.version || 'unknown',
+        description: metadata?.description || ''
       };
     });
   }

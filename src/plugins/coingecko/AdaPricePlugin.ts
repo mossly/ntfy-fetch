@@ -11,9 +11,8 @@ interface AdaPriceConfig {
   };
   flashCrashDetection: {
     enabled: boolean;
-    priceHistoryDays: number;
-    standardDeviationThreshold: number;
-    movingAveragePeriod: number;
+    percentageThreshold: number; // e.g., 10 for ±10%
+    timeWindowMinutes: number; // e.g., 60 for 1 hour
   };
 }
 
@@ -44,7 +43,7 @@ export class AdaPricePlugin extends BasePlugin {
     this.dataProvider = new CoinGeckoDataProvider({
       vs_currency: this.adaConfig.vs_currency || 'usd',
       coin_id: 'cardano'
-    }, 20); // 20 minute cache for flash crash detection
+    }, 5); // 5 minute cache for more frequent flash detection checks
   }
 
   getSchedules(): ScheduleConfig[] {
@@ -59,10 +58,10 @@ export class AdaPricePlugin extends BasePlugin {
       });
     }
 
-    // Hourly flash crash/boom detection
+    // Flash crash/boom detection - check every 5 minutes
     if (this.adaConfig.flashCrashDetection?.enabled) {
       schedules.push({
-        expression: CronExpressionBuilder.everyHours(1),
+        expression: CronExpressionBuilder.everyMinutes(5),
         description: 'Flash crash/boom detection',
         enabled: this.enabled
       });
@@ -136,10 +135,9 @@ export class AdaPricePlugin extends BasePlugin {
       // Add current price to history
       this.updatePriceHistory(priceData);
 
-      // Need at least enough data points for moving average
-      const minDataPoints = this.adaConfig.flashCrashDetection.movingAveragePeriod + 1;
-      if (this.priceHistory.length < minDataPoints) {
-        this.log('debug', `Insufficient price history: ${this.priceHistory.length}/${minDataPoints} points`);
+      // Need at least 2 data points to compare
+      if (this.priceHistory.length < 2) {
+        this.log('debug', `Insufficient price history: ${this.priceHistory.length} points`);
         return [];
       }
 
@@ -147,7 +145,7 @@ export class AdaPricePlugin extends BasePlugin {
       const anomaly = this.detectPriceAnomaly(priceData.current_price);
 
       if (anomaly) {
-        const eventKey = `flash-${anomaly.type}-${new Date().toISOString().slice(0, 13)}`; // hourly uniqueness
+        const eventKey = `flash-${anomaly.type}-${new Date().toISOString().slice(0, 13)}`; // hourly uniqueness to prevent spam
 
         if (!this.scheduler.getTracker().hasBeenSent(eventKey)) {
           this.scheduler.getTracker().markAsSent(eventKey);
@@ -158,7 +156,7 @@ export class AdaPricePlugin extends BasePlugin {
 
           notifications.push({
             title: `${emoji} ADA ${typeText} DETECTED`,
-            message: `Price: $${priceData.current_price.toFixed(4)} ${currency}\nDeviation: ${anomaly.deviations.toFixed(2)}σ from MA\nMA(${this.adaConfig.flashCrashDetection.movingAveragePeriod}): $${anomaly.movingAverage.toFixed(4)}`,
+            message: `Current: $${priceData.current_price.toFixed(4)} ${currency}\nChange: ${anomaly.changePercent.toFixed(2)}% in ${anomaly.timeWindowMins} minutes\nPrevious: $${anomaly.previousPrice.toFixed(4)}`,
             priority: 'high'
           });
         }
@@ -179,50 +177,60 @@ export class AdaPricePlugin extends BasePlugin {
 
     this.priceHistory.push(entry);
 
-    // Keep only the last N hours of data (for moving average calculation)
-    const maxEntries = this.adaConfig.flashCrashDetection.movingAveragePeriod * 2; // Buffer for safety
-    if (this.priceHistory.length > maxEntries) {
-      this.priceHistory = this.priceHistory.slice(-maxEntries);
-    }
+    // Keep price history for the configured time window + some buffer
+    const timeWindowMs = this.adaConfig.flashCrashDetection.timeWindowMinutes * 60 * 1000;
+    const bufferMs = 30 * 60 * 1000; // 30 minutes buffer
+    const cutoffTime = Date.now() - timeWindowMs - bufferMs;
+
+    this.priceHistory = this.priceHistory.filter(entry => entry.timestamp.getTime() >= cutoffTime);
 
     this.log('debug', `Price history updated: ${this.priceHistory.length} entries, latest: $${entry.price}`);
   }
 
-  private detectPriceAnomaly(currentPrice: number): { type: 'crash' | 'boom', deviations: number, movingAverage: number } | null {
-    const period = this.adaConfig.flashCrashDetection.movingAveragePeriod;
-    const threshold = this.adaConfig.flashCrashDetection.standardDeviationThreshold;
+  private detectPriceAnomaly(currentPrice: number): {
+    type: 'crash' | 'boom',
+    changePercent: number,
+    previousPrice: number,
+    timeWindowMins: number
+  } | null {
+    const percentageThreshold = this.adaConfig.flashCrashDetection.percentageThreshold;
+    const timeWindowMinutes = this.adaConfig.flashCrashDetection.timeWindowMinutes;
 
-    if (this.priceHistory.length < period) {
+    if (this.priceHistory.length < 2) {
       return null;
     }
 
-    // Get the last N prices for moving average calculation (excluding current)
-    const recentPrices = this.priceHistory.slice(-period).map(entry => entry.price);
+    // Find the price from approximately N minutes ago
+    const targetTime = Date.now() - (timeWindowMinutes * 60 * 1000);
 
-    // Calculate moving average
-    const movingAverage = recentPrices.reduce((sum, price) => sum + price, 0) / recentPrices.length;
+    // Find the closest historical price to our target time
+    let closestEntry = this.priceHistory[0];
+    let minTimeDiff = Math.abs(closestEntry.timestamp.getTime() - targetTime);
 
-    // Calculate standard deviation
-    const variance = recentPrices.reduce((sum, price) => sum + Math.pow(price - movingAverage, 2), 0) / recentPrices.length;
-    const standardDeviation = Math.sqrt(variance);
-
-    if (standardDeviation === 0) {
-      return null; // No volatility to detect anomalies
+    for (const entry of this.priceHistory) {
+      const timeDiff = Math.abs(entry.timestamp.getTime() - targetTime);
+      if (timeDiff < minTimeDiff) {
+        minTimeDiff = timeDiff;
+        closestEntry = entry;
+      }
     }
 
-    // Calculate how many standard deviations the current price is from the moving average
-    const deviations = (currentPrice - movingAverage) / standardDeviation;
+    const previousPrice = closestEntry.price;
+    const actualTimeWindowMins = Math.round((Date.now() - closestEntry.timestamp.getTime()) / 60000);
 
-    this.log('debug', `Price anomaly check: current=$${currentPrice}, MA=$${movingAverage.toFixed(4)}, σ=${standardDeviation.toFixed(4)}, deviations=${deviations.toFixed(2)}`);
+    // Calculate percentage change
+    const changePercent = ((currentPrice - previousPrice) / previousPrice) * 100;
 
-    // Check for flash crash (price significantly below moving average)
-    if (deviations <= -threshold) {
-      return { type: 'crash', deviations: Math.abs(deviations), movingAverage };
+    this.log('debug', `Price anomaly check: current=$${currentPrice}, previous=$${previousPrice.toFixed(4)} (${actualTimeWindowMins}m ago), change=${changePercent.toFixed(2)}%`);
+
+    // Check for flash crash (price dropped by threshold%)
+    if (changePercent <= -percentageThreshold) {
+      return { type: 'crash', changePercent, previousPrice, timeWindowMins: actualTimeWindowMins };
     }
 
-    // Check for flash boom (price significantly above moving average)
-    if (deviations >= threshold) {
-      return { type: 'boom', deviations, movingAverage };
+    // Check for flash boom (price increased by threshold%)
+    if (changePercent >= percentageThreshold) {
+      return { type: 'boom', changePercent, previousPrice, timeWindowMins: actualTimeWindowMins };
     }
 
     return null;
@@ -247,19 +255,23 @@ export class AdaPricePlugin extends BasePlugin {
 
   private async loadInitialPriceHistory(): Promise<void> {
     try {
-      const historyDays = this.adaConfig.flashCrashDetection.priceHistoryDays || 1;
-      const historyData = await this.dataProvider.fetchPriceHistory(historyDays);
+      // Fetch 1 day of historical data to populate initial price history
+      const historyData = await this.dataProvider.fetchPriceHistory(1);
 
-      // Convert price history to our format (last 24 entries for hourly data)
+      // Convert price history to our format
+      // Use data points that match our configured time window
+      const timeWindowHours = Math.ceil(this.adaConfig.flashCrashDetection.timeWindowMinutes / 60);
+      const requiredDataPoints = Math.max(timeWindowHours, 2); // At least 2 hours of data
+
       const entries = historyData.prices
-        .slice(-24) // Last 24 hours
+        .slice(-requiredDataPoints * 2) // Get 2x the required data for safety
         .map(([timestamp, price]) => ({
           timestamp: new Date(timestamp),
           price
         }));
 
       this.priceHistory = entries;
-      this.log('info', `Loaded ${entries.length} price history entries`);
+      this.log('info', `Loaded ${entries.length} price history entries for flash detection`);
 
     } catch (error) {
       this.log('warn', 'Could not load initial price history, will build it over time', error);
