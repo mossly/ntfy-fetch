@@ -10,6 +10,8 @@ import { eventBus } from '../core/EventBus';
 import { logger } from '../utils/logger';
 import { createMcpServer } from '../mcp/server';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { randomUUID } from 'crypto';
 
 export function createWebServer(opts: {
   pluginManager: PluginManager;
@@ -20,9 +22,9 @@ export function createWebServer(opts: {
   const server = http.createServer(app);
   const registry = new StateRegistry(opts.pluginManager, opts.scheduler);
 
-  // Apply JSON body parser to all routes EXCEPT /mcp/message (MCP SDK needs raw stream)
+  // Apply JSON body parser to all routes EXCEPT MCP endpoints (MCP SDK needs raw stream)
   app.use((req, res, next) => {
-    if (req.path === '/mcp/message') {
+    if (req.path === '/mcp/message' || req.path === '/mcp') {
       return next();
     }
     express.json()(req, res, next);
@@ -36,7 +38,7 @@ export function createWebServer(opts: {
     eventScheduler: opts.eventScheduler
   });
 
-  // Track active MCP transports by session ID for message routing
+  // Track active SSE transports by session ID for message routing
   const activeTransports = new Map<string, SSEServerTransport>();
 
   // MCP SSE endpoint
@@ -71,6 +73,44 @@ export function createWebServer(opts: {
     } catch (error) {
       logger.error('MCP connection error:', error);
       activeTransports.delete(transport.sessionId);
+    }
+  });
+
+  // MCP HTTP Streaming endpoint - supports both POST and GET
+  const httpTransport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => randomUUID(),
+    onsessioninitialized: async (sessionId) => {
+      logger.info(`MCP HTTP session initialized: ${sessionId}`);
+    },
+    onsessionclosed: async (sessionId) => {
+      logger.info(`MCP HTTP session closed: ${sessionId}`);
+    }
+  });
+
+  // Add detailed logging for transport events
+  httpTransport.onerror = (error: Error) => {
+    logger.error('MCP HTTP transport error:', error);
+  };
+
+  // Connect the MCP server to the HTTP transport once
+  (async () => {
+    try {
+      await mcpServer.connect(httpTransport);
+      logger.info('MCP server connected to HTTP streaming transport');
+    } catch (error) {
+      logger.error('Failed to connect MCP server to HTTP transport:', error);
+    }
+  })();
+
+  // Handle all HTTP methods for MCP endpoint
+  app.all('/mcp', async (req, res) => {
+    try {
+      await httpTransport.handleRequest(req, res);
+    } catch (error) {
+      logger.error('Error handling MCP HTTP request:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Internal server error' });
+      }
     }
   });
 
