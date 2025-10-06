@@ -96,6 +96,7 @@ export function createWebServer(opts: {
         // New session - create new transport
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
+          enableJsonResponse: true, // Use JSON responses instead of SSE streaming for better compatibility
           onsessioninitialized: async (newSessionId) => {
             logger.info(`MCP HTTP session initialized: ${newSessionId}`);
             httpTransports.set(newSessionId, transport);
