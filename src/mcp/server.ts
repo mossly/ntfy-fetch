@@ -250,6 +250,8 @@ export function createMcpServer(options: McpServerOptions): Server {
             throw new Error('Invalid date format for scheduledFor');
           }
 
+          logger.info(`[MCP] Scheduling notification for ${scheduledDate.toISOString()}`);
+
           const event = await eventScheduler.addEvent({
             id: `custom-${Date.now()}-${Math.random().toString(36).substring(7)}`,
             pluginName: 'mcp-custom',
@@ -265,7 +267,7 @@ export function createMcpServer(options: McpServerOptions): Server {
             },
           });
 
-          return {
+          const response = {
             content: [
               {
                 type: 'text',
@@ -281,6 +283,9 @@ export function createMcpServer(options: McpServerOptions): Server {
               },
             ],
           };
+
+          logger.info(`[MCP] Successfully scheduled notification: ${event.id}`);
+          return response;
         }
 
         case 'list_scheduled_notifications': {

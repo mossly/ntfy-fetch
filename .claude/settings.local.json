@@ -25,7 +25,10 @@
       "Bash(curl -s \"https://ghcr.io/v2/mossly/ntfy-fetch/manifests/latest\" -H \"Accept: application/vnd.docker.distribution.manifest.v2+json\")",
       "Bash(gh run list:*)",
       "Bash(gh run watch:*)",
-      "Bash(xargs gh run watch:*)"
+      "Bash(xargs gh run watch:*)",
+      "Bash(git log:*)",
+      "Bash(npm audit:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
