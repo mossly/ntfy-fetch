@@ -76,40 +76,76 @@ export function createWebServer(opts: {
     }
   });
 
-  // MCP HTTP Streaming endpoint - supports both POST and GET
-  const httpTransport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => randomUUID(),
-    onsessioninitialized: async (sessionId) => {
-      logger.info(`MCP HTTP session initialized: ${sessionId}`);
-    },
-    onsessionclosed: async (sessionId) => {
-      logger.info(`MCP HTTP session closed: ${sessionId}`);
-    }
-  });
+  // Store HTTP streaming transports by session ID
+  const httpTransports = new Map<string, StreamableHTTPServerTransport>();
 
-  // Add detailed logging for transport events
-  httpTransport.onerror = (error: Error) => {
-    logger.error('MCP HTTP transport error:', error);
-  };
-
-  // Connect the MCP server to the HTTP transport once
-  (async () => {
-    try {
-      await mcpServer.connect(httpTransport);
-      logger.info('MCP server connected to HTTP streaming transport');
-    } catch (error) {
-      logger.error('Failed to connect MCP server to HTTP transport:', error);
-    }
-  })();
-
-  // Handle all HTTP methods for MCP endpoint
+  // Handle all HTTP methods for MCP Streamable HTTP endpoint
   app.all('/mcp', async (req, res) => {
+    logger.info(`MCP HTTP ${req.method} request received`);
+
     try {
-      await httpTransport.handleRequest(req, res);
+      // Check for existing session ID in header
+      const sessionId = req.headers['mcp-session-id'] as string | undefined;
+      let transport: StreamableHTTPServerTransport;
+
+      if (sessionId && httpTransports.has(sessionId)) {
+        // Reuse existing transport for this session
+        transport = httpTransports.get(sessionId)!;
+        logger.info(`Reusing HTTP transport for session: ${sessionId}`);
+      } else if (!sessionId && req.method === 'POST') {
+        // New session - create new transport
+        transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => randomUUID(),
+          onsessioninitialized: async (newSessionId) => {
+            logger.info(`MCP HTTP session initialized: ${newSessionId}`);
+            httpTransports.set(newSessionId, transport);
+          },
+          onsessionclosed: async (closedSessionId) => {
+            logger.info(`MCP HTTP session closed: ${closedSessionId}`);
+            httpTransports.delete(closedSessionId);
+          }
+        });
+
+        transport.onerror = (error: Error) => {
+          logger.error(`MCP HTTP transport error (session: ${transport.sessionId}):`, error);
+        };
+
+        transport.onclose = () => {
+          if (transport.sessionId) {
+            logger.info(`MCP HTTP transport closed (session: ${transport.sessionId})`);
+            httpTransports.delete(transport.sessionId);
+          }
+        };
+
+        // Connect transport to MCP server
+        await mcpServer.connect(transport);
+        logger.info('MCP server connected to new HTTP streaming transport');
+      } else {
+        // Invalid request
+        res.status(400).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32000,
+            message: 'Bad Request: No valid session ID provided'
+          },
+          id: null
+        });
+        return;
+      }
+
+      // Handle the request with the transport
+      await transport.handleRequest(req, res, req.body);
     } catch (error) {
       logger.error('Error handling MCP HTTP request:', error);
       if (!res.headersSent) {
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32603,
+            message: 'Internal server error'
+          },
+          id: null
+        });
       }
     }
   });
