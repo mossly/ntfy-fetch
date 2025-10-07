@@ -217,6 +217,76 @@ export function createWebServer(opts: {
     }
   });
 
+  // Event scheduler endpoints (if available)
+  if (opts.eventScheduler) {
+    app.get('/api/events/scheduled', async (_req, res) => {
+      try {
+        const scheduled = opts.eventScheduler!.getScheduledEvents();
+        const stats = await opts.eventScheduler!.getStats();
+        res.json({
+          scheduled: scheduled.map((s) => ({
+            eventId: s.eventId,
+            scheduledFor: s.scheduledFor,
+            timeUntilMs: s.timeUntil,
+          })),
+          queueStats: stats.queueStats,
+        });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.post('/api/events/schedule', async (req, res) => {
+      try {
+        const { title, message, scheduledFor, priority = 'default', tags = [] } = req.body;
+
+        if (!title || !message || !scheduledFor) {
+          res.status(400).json({ error: 'title, message, and scheduledFor are required' });
+          return;
+        }
+
+        const scheduledDate = new Date(scheduledFor);
+        if (isNaN(scheduledDate.getTime())) {
+          res.status(400).json({ error: 'Invalid date format for scheduledFor' });
+          return;
+        }
+
+        const event = await opts.eventScheduler!.addEvent({
+          id: `custom-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+          pluginName: 'mcp-custom',
+          eventType: 'custom-notification',
+          status: 'pending',
+          scheduledFor: scheduledDate,
+          maxRetries: 3,
+          payload: {
+            title,
+            message,
+            priority: priority as 'min' | 'low' | 'default' | 'high' | 'max',
+            tags,
+          },
+        });
+
+        res.json({
+          success: true,
+          eventId: event.id,
+          scheduledFor: event.scheduledFor,
+        });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.delete('/api/events/:eventId', async (req, res) => {
+      try {
+        const { eventId } = req.params;
+        const cancelled = await opts.eventScheduler!.cancelEvent(eventId);
+        res.json({ success: cancelled, eventId });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+  }
+
   app.get('/api/events/stream', (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');

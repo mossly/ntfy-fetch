@@ -28,7 +28,8 @@
       "Bash(xargs gh run watch:*)",
       "Bash(git log:*)",
       "Bash(npm audit:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(claude mcp call mossnas list_scheduled_notifications:*)"
     ],
     "deny": [],
     "ask": []
