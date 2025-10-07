@@ -385,10 +385,12 @@ export function createMcpServer(options: McpServerOptions): Server {
 
   // Handle resource reads
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    logger.info(`[MCP] ReadResourceRequest received: ${request.params.uri}`);
     const { uri } = request.params;
 
     try {
       const snapshot = registry.getSnapshot();
+      logger.info(`[MCP] Successfully retrieved snapshot for ${uri}`);
 
       switch (uri) {
         case 'ntfy://status':
