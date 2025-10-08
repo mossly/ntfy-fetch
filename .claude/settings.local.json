@@ -29,7 +29,8 @@
       "Bash(git log:*)",
       "Bash(npm audit:*)",
       "Bash(curl:*)",
-      "Bash(claude mcp call mossnas list_scheduled_notifications:*)"
+      "Bash(claude mcp call mossnas list_scheduled_notifications:*)",
+      "Bash(claude mcp list:*)"
     ],
     "deny": [],
     "ask": []

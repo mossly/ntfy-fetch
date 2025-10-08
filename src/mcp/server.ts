@@ -359,7 +359,7 @@ export function createMcpServer(options: McpServerOptions): Server {
   // List available resources
   server.setRequestHandler(ListResourcesRequestSchema, async () => {
     logger.info('[MCP] ListResourcesRequest received');
-    return {
+    const response = {
       resources: [
         {
           uri: 'ntfy://status',
@@ -381,6 +381,8 @@ export function createMcpServer(options: McpServerOptions): Server {
         },
       ],
     };
+    logger.info(`[MCP] Returning ${response.resources.length} resources`);
+    return response;
   });
 
   // Handle resource reads
